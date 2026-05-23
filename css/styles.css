@@ -4864,19 +4864,19 @@ body.sn-body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 14px 6px 11px;
+  padding: 8px 18px 8px 14px;
   background: var(--sn-indigo-faint);
   border: 1px solid var(--sn-indigo-tint);
   border-radius: 999px;
-  font-size: 12.5px;
+  font-size: 14.5px;
   font-weight: 600;
   color: var(--sn-indigo-dark);
   letter-spacing: 0.005em;
   animation: sn-fade-up 0.5s ease-out both;
 }
 .sn-eyebrow-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--sn-indigo);
   box-shadow: 0 0 0 2px var(--sn-indigo-tint);
@@ -6100,10 +6100,17 @@ body.sn-admin-body {
   border: 1px solid var(--sn-indigo-tint);
 }
 .sn-admin-email {
-  font-size: 13px;
-  color: var(--sn-ink-soft);
-  font-weight: 500;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #1d4ed8;
+  background: linear-gradient(135deg, #eff6ff 0%, #ede9fe 100%);
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(37, 99, 235, 0.15);
   margin-right: 4px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 @media (max-width: 720px) {
   .sn-admin-tag {
@@ -9263,7 +9270,7 @@ body.exam-body {
    doesn't accidentally affect index.html / exam.html / login.html.
    ================================================================= */
 
-/* Admin nav links (Dashboard ↔ Analytics) */
+/* Admin nav links (Instructor Dashboard ↔ Exam Analytics) */
 .sn-admin-body .sn-admin-nav {
   display: flex;
   align-items: center;
@@ -9284,18 +9291,30 @@ body.exam-body {
   color: #475569;
   text-decoration: none;
   border-radius: 7px;
-  transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+  letter-spacing: 0.01em;
+  transition:
+    background 200ms cubic-bezier(0.4, 0, 0.2, 1),
+    color 200ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 200ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .sn-admin-body .sn-nav-link:hover {
   background: rgba(255, 255, 255, 0.7);
-  color: #1e293b;
+  color: #0f172a;
+  transform: translateY(-1px);
 }
 .sn-admin-body .sn-nav-link.is-active {
-  background: #ffffff;
-  color: #0f172a;
+  background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+  color: #ffffff;
   box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.08),
-    0 0 0 1px rgba(15, 23, 42, 0.04);
+    0 4px 12px -2px rgba(37, 99, 235, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+.sn-admin-body .sn-nav-link.is-active:hover {
+  /* Hover state on active item: keep the gradient, no transform jitter */
+  transform: none;
+  color: #ffffff;
+  background: linear-gradient(135deg, #1d4ed8 0%, #6d28d9 100%);
 }
 
 /* Analytics page sections — vertical rhythm */
@@ -9813,4 +9832,186 @@ body.exam-body {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* =================================================================
+   PHASE 4 polish (round 2): pulsing live indicator, stat-pill legends,
+   chart hover effects, table-row hover, card hover lift.
+   ================================================================= */
+
+/* ---- Title row with pulsing live indicator ---- */
+.sn-admin-body .sn-af-title-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.sn-admin-body .sn-af-title-row h1 {
+  margin: 0 0 4px;
+}
+.sn-admin-body .sn-live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 8px;
+  background: rgba(22, 163, 74, 0.08);
+  border: 1px solid rgba(22, 163, 74, 0.22);
+  border-radius: 999px;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #15803d;
+  margin-bottom: 4px;
+}
+.sn-admin-body .sn-live-dot {
+  position: relative;
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #16a34a;
+}
+.sn-admin-body .sn-live-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #16a34a;
+  animation: sn-live-pulse 1.6s cubic-bezier(0.2, 0, 0.4, 1) infinite;
+}
+@keyframes sn-live-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  80% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+/* ---- Stat pills (colored legends for chart stats) ---- */
+.sn-admin-body .sn-an-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  margin-right: 6px;
+  margin-bottom: 4px;
+  border-radius: 999px;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+  position: relative;
+}
+.sn-admin-body .sn-an-stat::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+.sn-admin-body .sn-an-stat-mean {
+  background: rgba(124, 58, 237, 0.1);
+  color: #6d28d9;
+  border-color: rgba(124, 58, 237, 0.2);
+}
+.sn-admin-body .sn-an-stat-mean::before {
+  background: #7c3aed;
+}
+.sn-admin-body .sn-an-stat-median {
+  background: rgba(22, 163, 74, 0.1);
+  color: #15803d;
+  border-color: rgba(22, 163, 74, 0.2);
+}
+.sn-admin-body .sn-an-stat-median::before {
+  background: #16a34a;
+}
+.sn-admin-body .sn-an-stat-min {
+  background: rgba(8, 145, 178, 0.1);
+  color: #0e7490;
+  border-color: rgba(8, 145, 178, 0.2);
+}
+.sn-admin-body .sn-an-stat-min::before {
+  background: #0891b2;
+}
+.sn-admin-body .sn-an-stat-max {
+  background: rgba(220, 38, 38, 0.1);
+  color: #b91c1c;
+  border-color: rgba(220, 38, 38, 0.2);
+}
+.sn-admin-body .sn-an-stat-max::before {
+  background: #dc2626;
+}
+.sn-admin-body .sn-an-stat-stddev {
+  background: rgba(249, 115, 22, 0.1);
+  color: #c2410c;
+  border-color: rgba(249, 115, 22, 0.2);
+}
+.sn-admin-body .sn-an-stat-stddev::before {
+  background: #f97316;
+}
+
+/* ---- Chart card hover lift ---- */
+.sn-admin-body .sn-an-card {
+  transition:
+    transform 240ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 240ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 240ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sn-admin-body .sn-an-card:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 12px 28px -8px rgba(15, 23, 42, 0.12),
+    0 4px 8px -4px rgba(15, 23, 42, 0.06);
+  border-color: rgba(37, 99, 235, 0.18);
+}
+
+/* ---- SVG element hover effects ---- */
+.sn-admin-body .sn-an-bar {
+  transition:
+    fill 180ms ease,
+    opacity 180ms ease,
+    filter 180ms ease;
+  cursor: pointer;
+}
+.sn-admin-body .sn-an-bar:hover {
+  filter: brightness(1.12) saturate(1.1);
+}
+.sn-admin-body .sn-an-donut-slice {
+  transition:
+    transform 220ms cubic-bezier(0.4, 0, 0.2, 1),
+    filter 220ms cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: 140px 140px;
+  cursor: pointer;
+}
+.sn-admin-body .sn-an-donut-slice:hover {
+  transform: scale(1.04);
+  filter: brightness(1.08) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15));
+}
+.sn-admin-body .sn-an-lollipop-dot {
+  transition:
+    r 180ms ease,
+    fill 180ms ease;
+  cursor: pointer;
+}
+.sn-admin-body .sn-an-lollipop-dot:hover {
+  r: 7;
+  fill: #1d4ed8;
+}
+
+/* ---- Risk table row hover ---- */
+.sn-admin-body .sn-an-table tbody tr {
+  transition: background 160ms ease;
+}
+.sn-admin-body .sn-an-table tbody tr:hover {
+  background: linear-gradient(90deg, #f8fafc 0%, #ffffff 100%);
 }
