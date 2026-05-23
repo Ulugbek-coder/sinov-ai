@@ -1,7 +1,7 @@
 # Sinov AI
 
 **AI-enhanced exam platform for higher education.**
-Built for the [Build with AI 2026 EdTech Ideathon](https://buildwithai.uz/) by the NPUU Digital Solutions team at New Uzbekistan University (Tashkent).
+Built for the [Build with AI 2026 EdTech Hackathon](https://buildwithai.uz/) by the NPUU Digital Solutions team at New Uzbekistan University (Tashkent).
 
 > *"Sinov"* (синов) means *examination* or *test* in Uzbek.
 
@@ -104,13 +104,14 @@ Per student per exam (typical 90-minute session with proctoring + grading + feed
 
 | Member | Role |
 | --- | --- |
-| Sarvar Numonjonov | Team Lead |
-| Ulugbek Tursunaliev | Lead Software Engineer |
-| Muqaddas Abdusaidova | Researcher |
-| Oybek Sobirjonov | UI/UX Designer |
+| Ulugbek Tursunaliev | Team Lead |
+| Islom Xolmuminov | Developer |
+| Muqaddas Abdusaidova | UI/UX Designer |
+| Sevinch Yoqubova | Researcher & Sales Manager |
+| Oybek Sobirjonov | Developer |
 
 ---
 
 ## License
 
-This project is the original work of the NPUU Digital Solutions team. Submitted to the Build with AI 2026 EdTech Ideathon (Public & Higher Education track) at New Uzbekistan University on May 23–24, 2026.
+This project is the original work of the NPUU Digital Solutions team. Submitted to the Build with AI 2026 EdTech Hackathon (Public & Higher Education track) at New Uzbekistan University on May 23–24, 2026.
