@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2563EB" />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="assets/favicon.svg?v=20260521g"
+    />
+    <title>Sinov AI · Analytics</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/styles.css?v=20260521y" />
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="js/firebase-config.js?v=20260505a"></script>
+    <script src="js/firebase-client.js?v=20260521s"></script>
+  </head>
+  <body class="sn-body sn-admin-body lang-uz">
+    <!-- ========================================================== -->
+    <!-- HEADER (mirrors admin.html)                                 -->
+    <!-- ========================================================== -->
+    <header class="sn-header sn-admin-header">
+      <div class="sn-header-inner">
+        <div class="sn-brand-row">
+          <a href="index.html" class="sn-brand" aria-label="Sinov AI home">
+            <span class="sn-logo" aria-hidden="true">
+              <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                <rect width="32" height="32" rx="7" fill="#2563EB" />
+                <path
+                  d="M21 9 H10 a3 3 0 0 0 0 6 h9 a2 2 0 0 1 0 4 H10 v3 h11 a5 5 0 0 0 0 -10 H13 a1 1 0 0 1 0 -2 h8 z"
+                  fill="#FFFFFF"
+                />
+                <circle cx="25.5" cy="6.5" r="3.2" fill="#F97316" />
+                <circle
+                  cx="25.5"
+                  cy="6.5"
+                  r="1.3"
+                  fill="#FFFFFF"
+                  opacity="0.5"
+                />
+              </svg>
+            </span>
+            <span class="sn-wordmark">
+              <span class="sn-wm-1">Sinov</span><span class="sn-wm-2">AI</span>
+            </span>
+          </a>
+          <span class="sn-admin-tag" aria-label="Section">Analytics</span>
+        </div>
+        <div class="sn-header-right">
+          <nav class="sn-admin-nav" aria-label="Admin navigation">
+            <a href="admin.html" class="sn-nav-link">Dashboard</a>
+            <a href="analytics.html" class="sn-nav-link is-active">Analytics</a>
+          </nav>
+          <span id="adminEmail" class="sn-admin-email">&nbsp;</span>
+          <button
+            id="logoutBtn"
+            class="sn-header-instructor"
+            type="button"
+            aria-label="Log out"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+              <path d="M16 17l5-5-5-5" />
+              <path d="M21 12H9" />
+            </svg>
+            <span class="sn-hi-text">Log out</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ========================================================== -->
+    <!-- MAIN                                                        -->
+    <!-- ========================================================== -->
+    <main class="sn-admin-main">
+      <!-- ===== Filter bar ===== -->
+      <section class="sn-analytics-section">
+        <div class="sn-analytics-filterbar">
+          <div class="sn-af-title">
+            <h1>Exam Analytics</h1>
+            <p class="sn-af-sub">
+              Aggregate insights across submissions. Updates live from Firestore.
+            </p>
+          </div>
+          <div class="sn-af-controls">
+            <label class="sn-af-control">
+              <span class="sn-af-label">Exam</span>
+              <select id="anFilterExam" class="sn-af-select">
+                <option value="">Loading…</option>
+              </select>
+            </label>
+            <label class="sn-af-control">
+              <span class="sn-af-label">Group</span>
+              <select id="anFilterGroup" class="sn-af-select">
+                <option value="">All groups</option>
+              </select>
+            </label>
+            <button id="anRefreshBtn" class="sn-af-refresh" type="button">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <polyline points="1 20 1 14 7 14"></polyline>
+                <path
+                  d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"
+                ></path>
+              </svg>
+              <span>Refresh</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Loading / Empty states ===== -->
+      <section
+        id="anLoadingState"
+        class="sn-analytics-section sn-an-state"
+        style="display: none"
+      >
+        <div class="sn-an-state-inner">
+          <div class="sn-an-spinner" aria-hidden="true"></div>
+          <p>Loading submissions…</p>
+        </div>
+      </section>
+
+      <section
+        id="anEmptyState"
+        class="sn-analytics-section sn-an-state"
+        style="display: none"
+      >
+        <div class="sn-an-state-inner">
+          <div class="sn-an-empty-icon" aria-hidden="true">📊</div>
+          <h3 id="anEmptyTitle">No submissions yet</h3>
+          <p id="anEmptyMessage">
+            Once students complete this exam, you'll see scores, timing, and
+            proctoring analytics here.
+          </p>
+        </div>
+      </section>
+
+      <section
+        id="anErrorState"
+        class="sn-analytics-section sn-an-state sn-an-state-err"
+        style="display: none"
+      >
+        <div class="sn-an-state-inner">
+          <div class="sn-an-empty-icon" aria-hidden="true">⚠</div>
+          <h3>Could not load analytics</h3>
+          <p id="anErrorMessage">Unknown error.</p>
+          <button id="anRetryBtn" class="sn-af-refresh" type="button">
+            Retry
+          </button>
+        </div>
+      </section>
+
+      <!-- ===== KPI cards row ===== -->
+      <section
+        id="anKpiSection"
+        class="sn-analytics-section"
+        style="display: none"
+      >
+        <div class="sn-an-kpi-grid">
+          <div class="sn-an-kpi">
+            <div class="sn-an-kpi-label">Total submissions</div>
+            <div class="sn-an-kpi-value" id="anKpiTotal">—</div>
+            <div class="sn-an-kpi-sub" id="anKpiTotalSub">&nbsp;</div>
+          </div>
+          <div class="sn-an-kpi">
+            <div class="sn-an-kpi-label">Average final grade</div>
+            <div class="sn-an-kpi-value" id="anKpiAvg">—</div>
+            <div class="sn-an-kpi-sub" id="anKpiAvgSub">&nbsp;</div>
+          </div>
+          <div class="sn-an-kpi">
+            <div class="sn-an-kpi-label">Pass rate</div>
+            <div class="sn-an-kpi-value" id="anKpiPass">—</div>
+            <div class="sn-an-kpi-sub" id="anKpiPassSub">≥ 50% threshold</div>
+          </div>
+          <div class="sn-an-kpi">
+            <div class="sn-an-kpi-label">Avg completion time</div>
+            <div class="sn-an-kpi-value" id="anKpiTime">—</div>
+            <div class="sn-an-kpi-sub" id="anKpiTimeSub">&nbsp;</div>
+          </div>
+          <div class="sn-an-kpi">
+            <div class="sn-an-kpi-label">Proctoring events</div>
+            <div class="sn-an-kpi-value" id="anKpiEvents">—</div>
+            <div class="sn-an-kpi-sub" id="anKpiEventsSub">total across all students</div>
+          </div>
+          <div class="sn-an-kpi">
+            <div class="sn-an-kpi-label">AI graded</div>
+            <div class="sn-an-kpi-value" id="anKpiAiGraded">—</div>
+            <div class="sn-an-kpi-sub" id="anKpiAiGradedSub">of total submissions</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Charts row 1: Score distribution + Time distribution ===== -->
+      <section
+        id="anChartsRow1"
+        class="sn-analytics-section sn-an-charts-row"
+        style="display: none"
+      >
+        <article class="sn-an-card">
+          <header class="sn-an-card-head">
+            <h2>Score distribution</h2>
+            <p class="sn-an-card-sub" id="anScoreStats">&nbsp;</p>
+          </header>
+          <div class="sn-an-chart-wrap">
+            <svg
+              id="anScoreChart"
+              viewBox="0 0 600 280"
+              preserveAspectRatio="xMidYMid meet"
+              role="img"
+              aria-label="Score distribution histogram"
+            ></svg>
+          </div>
+        </article>
+
+        <article class="sn-an-card">
+          <header class="sn-an-card-head">
+            <h2>Completion time</h2>
+            <p class="sn-an-card-sub" id="anTimeStats">&nbsp;</p>
+          </header>
+          <div class="sn-an-chart-wrap">
+            <svg
+              id="anTimeChart"
+              viewBox="0 0 600 280"
+              preserveAspectRatio="xMidYMid meet"
+              role="img"
+              aria-label="Completion time distribution"
+            ></svg>
+          </div>
+        </article>
+      </section>
+
+      <!-- ===== Charts row 2: Proctoring events + Risk-band donut ===== -->
+      <section
+        id="anChartsRow2"
+        class="sn-analytics-section sn-an-charts-row"
+        style="display: none"
+      >
+        <article class="sn-an-card sn-an-card-wide">
+          <header class="sn-an-card-head">
+            <h2>Proctoring anomaly types</h2>
+            <p class="sn-an-card-sub" id="anProctorStats">&nbsp;</p>
+          </header>
+          <div class="sn-an-chart-wrap">
+            <svg
+              id="anProctorChart"
+              viewBox="0 0 720 280"
+              preserveAspectRatio="xMidYMid meet"
+              role="img"
+              aria-label="Proctoring anomaly type breakdown"
+            ></svg>
+          </div>
+        </article>
+
+        <article class="sn-an-card">
+          <header class="sn-an-card-head">
+            <h2>Risk bands</h2>
+            <p class="sn-an-card-sub">% of students by risk level</p>
+          </header>
+          <div class="sn-an-chart-wrap sn-an-donut-wrap">
+            <svg
+              id="anRiskDonut"
+              viewBox="0 0 280 280"
+              preserveAspectRatio="xMidYMid meet"
+              role="img"
+              aria-label="Risk band donut chart"
+            ></svg>
+            <ul class="sn-an-legend" id="anRiskLegend"></ul>
+          </div>
+        </article>
+      </section>
+
+      <!-- ===== Charts row 3: Submission method + Top risk students ===== -->
+      <section
+        id="anChartsRow3"
+        class="sn-analytics-section sn-an-charts-row"
+        style="display: none"
+      >
+        <article class="sn-an-card">
+          <header class="sn-an-card-head">
+            <h2>Submission method</h2>
+            <p class="sn-an-card-sub">
+              How students' work reached the server. <b>Regular</b> = clicked
+              Submit; <b>Auto</b> = timer expired; <b>Form</b> = Firebase upload
+              failed, fallback used.
+            </p>
+          </header>
+          <div class="sn-an-chart-wrap">
+            <svg
+              id="anMethodChart"
+              viewBox="0 0 600 220"
+              preserveAspectRatio="xMidYMid meet"
+              role="img"
+              aria-label="Submission method breakdown"
+            ></svg>
+          </div>
+        </article>
+
+        <article class="sn-an-card">
+          <header class="sn-an-card-head">
+            <h2>Highest-risk students</h2>
+            <p class="sn-an-card-sub">Top 10 by proctoring risk score</p>
+          </header>
+          <div class="sn-an-table-wrap">
+            <table class="sn-an-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Student</th>
+                  <th>Group</th>
+                  <th>Risk</th>
+                  <th>Tabs</th>
+                  <th>Grade</th>
+                </tr>
+              </thead>
+              <tbody id="anRiskTbody">
+                <tr>
+                  <td colspan="6" class="sn-an-table-empty">No data.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <!-- Reusable modal (matches admin's pattern) -->
+    <div
+      id="appModal"
+      class="app-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="appModalTitle"
+      style="display: none"
+    >
+      <div class="app-modal-backdrop"></div>
+      <div class="app-modal-dialog" role="document">
+        <div class="app-modal-head">
+          <div class="app-modal-icon" id="appModalIcon">?</div>
+          <h3 id="appModalTitle">Confirm</h3>
+        </div>
+        <div class="app-modal-body" id="appModalBody">Message</div>
+        <div class="app-modal-actions" id="appModalActions"></div>
+      </div>
+    </div>
+
+    <script src="js/header-scroll.js?v=20260521u"></script>
+    <script src="js/analytics.js?v=20260523a"></script>
+  </body>
+</html>
