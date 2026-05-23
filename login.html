@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2563EB" />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="assets/favicon.svg?v=20260521s"
+    />
+    <title>Sinov AI · Instructor Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/styles.css?v=20260521x" />
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+    <script src="js/firebase-config.js?v=20260505a"></script>
+  </head>
+  <body class="sn-body lang-uz">
+    <!-- ========================================================== -->
+    <!-- HEADER                                                      -->
+    <!-- ========================================================== -->
+    <header class="sn-header">
+      <div class="sn-header-inner">
+        <a href="index.html" class="sn-brand" aria-label="Sinov AI home">
+          <span class="sn-logo" aria-hidden="true">
+            <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+              <rect width="32" height="32" rx="7" fill="#2563EB" />
+              <path
+                d="M21 9 H10 a3 3 0 0 0 0 6 h9 a2 2 0 0 1 0 4 H10 v3 h11 a5 5 0 0 0 0 -10 H13 a1 1 0 0 1 0 -2 h8 z"
+                fill="#FFFFFF"
+              />
+              <circle cx="25.5" cy="6.5" r="3.2" fill="#F97316" />
+              <circle cx="25.5" cy="6.5" r="1.3" fill="#FFFFFF" opacity="0.5" />
+            </svg>
+          </span>
+          <span class="sn-wordmark">
+            <span class="sn-wm-1">Sinov</span><span class="sn-wm-2">AI</span>
+          </span>
+        </a>
+      </div>
+    </header>
+
+    <!-- ========================================================== -->
+    <!-- LOGIN MAIN                                                  -->
+    <!-- ========================================================== -->
+    <main class="sn-login-main">
+      <div class="sn-login-wrap">
+        <div class="sn-login-card">
+          <div class="sn-login-head">
+            <div class="sn-login-icon" aria-hidden="true">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M19 11a4 4 0 100-8 4 4 0 000 8z"
+                  transform="translate(-7 0)"
+                />
+                <path d="M4 21c0-3.866 4-7 8-7s8 3.134 8 7" />
+                <circle cx="17.5" cy="9.5" r="1.6" fill="currentColor" />
+              </svg>
+            </div>
+            <h1 class="sn-login-title">Instructor Login</h1>
+            <p class="sn-login-sub">
+              Sign in to manage exams and view student submissions.
+              <span class="uz"
+                >Imtihonlarni boshqarish va talabalar topshiriqlarini ko'rish
+                uchun tizimga kiring.</span
+              >
+              <span class="ru"
+                >Войдите, чтобы управлять экзаменами и просматривать работы
+                студентов.</span
+              >
+            </p>
+          </div>
+
+          <div class="sn-login-form">
+            <div class="sn-form-row">
+              <label for="loginEmail" class="sn-label-sm">
+                Institutional Email <span class="sn-req">*</span>
+              </label>
+              <input
+                type="email"
+                id="loginEmail"
+                class="sn-input"
+                autocomplete="username"
+                placeholder="instructor@example.com"
+              />
+            </div>
+
+            <div class="sn-form-row">
+              <label for="loginPassword" class="sn-label-sm">
+                Password <span class="sn-req">*</span>
+              </label>
+              <div class="sn-pw-wrap">
+                <input
+                  type="password"
+                  id="loginPassword"
+                  class="sn-input"
+                  autocomplete="current-password"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  id="pwToggle"
+                  class="sn-pw-toggle"
+                  aria-label="Show password"
+                  title="Show password"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
+                      stroke="currentColor"
+                      stroke-width="1.7"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="3"
+                      stroke="currentColor"
+                      stroke-width="1.7"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div
+              id="loginError"
+              class="sn-login-error"
+              style="display: none"
+            ></div>
+
+            <button id="loginBtn" type="button" class="sn-btn-primary">
+              <span class="sn-btn-text">Log in</span>
+              <svg
+                class="sn-btn-arrow"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+            </button>
+
+            <p class="sn-login-note">
+              Only pre-authorized instructor accounts can sign in. If you're a
+              student, go back to the
+              <a href="index.html">exam page</a>.
+              <span class="uz">
+                Faqat ro'yxatdan o'tgan o'qituvchilar tizimga kira oladi. Agar
+                siz talaba bo'lsangiz,
+                <a href="index.html">imtihon sahifasi</a>ga qayting.
+              </span>
+              <span class="ru">
+                Войти могут только заранее авторизованные преподавательские
+                аккаунты. Если вы студент, вернитесь на
+                <a href="index.html">страницу экзамена</a>.
+              </span>
+            </p>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ========================================================== -->
+    <!-- FOOTER                                                      -->
+    <!-- ========================================================== -->
+    <footer class="sn-footer">
+      <div class="sn-footer-inner">
+        <div class="sn-footer-brand-col">
+          <span class="sn-logo sn-logo-sm" aria-hidden="true">
+            <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+              <rect width="32" height="32" rx="7" fill="#2563EB" />
+              <path
+                d="M21 9 H10 a3 3 0 0 0 0 6 h9 a2 2 0 0 1 0 4 H10 v3 h11 a5 5 0 0 0 0 -10 H13 a1 1 0 0 1 0 -2 h8 z"
+                fill="#FFFFFF"
+              />
+              <circle cx="25.5" cy="6.5" r="3.2" fill="#F97316" />
+            </svg>
+          </span>
+          <div class="sn-footer-text">
+            <div class="sn-footer-brand-name">Sinov AI</div>
+            <div class="sn-footer-copy">
+              © 2026 Sinov AI LLC. All rights reserved.
+            </div>
+          </div>
+        </div>
+
+        <div class="sn-footer-contact-col">
+          <div class="sn-footer-contact-row">
+            <svg
+              class="sn-footer-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+            <span class="sn-footer-contact-text">
+              Innovation Hub, 54 Mirzo Ulug'bek Avenue, Tashkent 100170,
+              Uzbekistan
+            </span>
+          </div>
+          <div class="sn-footer-contact-row">
+            <svg
+              class="sn-footer-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path
+                d="M4 6h16a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z"
+              />
+              <path d="M2.5 7l9.5 7 9.5-7" />
+            </svg>
+            <a href="mailto:sinovai@gmail.com" class="sn-footer-email"
+              >sinovai@gmail.com</a
+            >
+          </div>
+        </div>
+      </div>
+    </footer>
+
+    <script src="js/header-scroll.js?v=20260521u"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        // Set initial language from localStorage (matches the main app convention)
+        try {
+          var stored = localStorage.getItem("examLang");
+          var lang = stored === "ru" ? "ru" : "uz";
+          document.body.classList.remove("lang-uz", "lang-ru");
+          document.body.classList.add("lang-" + lang);
+        } catch (_) {}
+
+        // If already signed in (and it's an email account), go straight to admin.
+        window.fbAuth.onAuthStateChanged(function (user) {
+          if (
+            user &&
+            user.providerData &&
+            user.providerData.length &&
+            user.providerData[0].providerId === "password"
+          ) {
+            window.location.href = "admin.html";
+          }
+        });
+
+        var btn = document.getElementById("loginBtn");
+        var errEl = document.getElementById("loginError");
+        var btnText = btn.querySelector(".sn-btn-text");
+
+        function setError(msg) {
+          errEl.textContent = msg;
+          errEl.style.display = msg ? "block" : "none";
+        }
+
+        btn.addEventListener("click", function () {
+          setError("");
+          var email = document.getElementById("loginEmail").value.trim();
+          var pw = document.getElementById("loginPassword").value;
+          if (!email || !pw) {
+            setError("Please enter both your email and password.");
+            return;
+          }
+          btn.disabled = true;
+          if (btnText) btnText.textContent = "Signing in…";
+          window.fbAuth
+            .signInWithEmailAndPassword(email, pw)
+            .then(function () {
+              window.location.href = "admin.html";
+            })
+            .catch(function (err) {
+              btn.disabled = false;
+              if (btnText) btnText.textContent = "Log in";
+              var code = (err && err.code) || "";
+              if (
+                code === "auth/user-not-found" ||
+                code === "auth/invalid-email" ||
+                code === "auth/wrong-password" ||
+                code === "auth/invalid-credential"
+              ) {
+                setError(
+                  "Email not authorized or password incorrect. Only pre-registered instructor accounts may sign in.",
+                );
+              } else if (code === "auth/too-many-requests") {
+                setError(
+                  "Too many failed attempts. Please wait a few minutes and try again.",
+                );
+              } else {
+                setError(
+                  "Sign-in failed: " +
+                    (err && err.message ? err.message : code),
+                );
+              }
+            });
+        });
+
+        // Submit on Enter
+        ["loginEmail", "loginPassword"].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (!el) return;
+          el.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") btn.click();
+          });
+        });
+
+        // Password eye-toggle
+        var pwInput = document.getElementById("loginPassword");
+        var pwBtn = document.getElementById("pwToggle");
+        pwBtn.addEventListener("click", function () {
+          var showing = pwInput.type === "text";
+          pwInput.type = showing ? "password" : "text";
+          pwBtn.setAttribute(
+            "aria-label",
+            showing ? "Show password" : "Hide password",
+          );
+          pwBtn.setAttribute(
+            "title",
+            showing ? "Show password" : "Hide password",
+          );
+          if (showing) {
+            pwBtn.innerHTML =
+              '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+              '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>' +
+              '<circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>' +
+              "</svg>";
+          } else {
+            pwBtn.innerHTML =
+              '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+              '<path d="M1 1l22 22" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>' +
+              '<path d="M4.5 6.5C2.5 8.3 1 12 1 12s4 8 11 8c2 0 3.7-.6 5.2-1.5M9.5 4.2A12.6 12.6 0 0112 4c7 0 11 8 11 8s-.9 1.7-2.5 3.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>' +
+              '<path d="M10.6 10.6a2 2 0 002.8 2.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>' +
+              "</svg>";
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
