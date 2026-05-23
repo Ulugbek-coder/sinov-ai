@@ -16,7 +16,7 @@
       href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/styles.css?v=20260521y" />
+    <link rel="stylesheet" href="css/styles.css?v=20260521z" />
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -54,9 +54,6 @@
               <span class="sn-wm-1">Sinov</span><span class="sn-wm-2">AI</span>
             </span>
           </a>
-          <span class="sn-admin-tag" aria-label="Section"
-            >Instructor Dashboard</span
-          >
         </div>
         <div class="sn-header-right">
           <nav class="sn-admin-nav" aria-label="Admin navigation">
@@ -907,6 +904,17 @@
             correctness, code quality, efficiency, and edge cases. You can
             override each score before saving.
           </div>
+          <!-- AI Grading status banner — hidden by default; admin.js sets
+               .is-running / .is-success / .is-error to swap content. -->
+          <div
+            id="sgdGradingStatus"
+            class="sn-grading-status"
+            style="display: none"
+            aria-live="polite"
+          >
+            <span class="sn-grading-status-icon" aria-hidden="true"></span>
+            <span class="sn-grading-status-text"></span>
+          </div>
         </div>
 
         <!-- Problems area — 4 cards injected by admin.js -->
@@ -956,8 +964,8 @@
     </div>
 
     <script src="js/questions/coding-bank.js?v=20260505a"></script>
-    <script src="js/proctoring-admin.js?v=20260521s"></script>
+    <script src="js/proctoring-admin.js?v=20260523c"></script>
     <script src="js/header-scroll.js?v=20260521u"></script>
-    <script src="js/admin.js?v=20260521w"></script>
+    <script src="js/admin.js?v=20260523c"></script>
   </body>
 </html>
