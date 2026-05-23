@@ -16,7 +16,7 @@
       href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/styles.css?v=20260521z" />
+    <link rel="stylesheet" href="css/styles.css?v=20260523d" />
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -57,8 +57,8 @@
         </div>
         <div class="sn-header-right">
           <nav class="sn-admin-nav" aria-label="Admin navigation">
-            <a href="admin.html" class="sn-nav-link">Dashboard</a>
-            <a href="analytics.html" class="sn-nav-link is-active">Analytics</a>
+            <a href="admin.html" class="sn-nav-link">Instructor Dashboard</a>
+            <a href="analytics.html" class="sn-nav-link is-active">Exam Analytics</a>
           </nav>
           <span id="adminEmail" class="sn-admin-email">&nbsp;</span>
           <button
@@ -94,7 +94,13 @@
       <section class="sn-analytics-section">
         <div class="sn-analytics-filterbar">
           <div class="sn-af-title">
-            <h1>Live Analytics for Exams</h1>
+            <div class="sn-af-title-row">
+              <h1>Live Analytics for Exams</h1>
+              <span class="sn-live-indicator" aria-label="Live updates active" title="Live updates active">
+                <span class="sn-live-dot"></span>
+                <span class="sn-live-text">LIVE</span>
+              </span>
+            </div>
             <p class="sn-af-sub">
               Live updates from Database.
             </p>
@@ -379,6 +385,72 @@
       </section>
     </main>
 
+    <!-- Footer (shared layout — see index.html for the source of truth) -->
+    <footer class="sn-footer">
+      <div class="sn-footer-inner">
+        <div class="sn-footer-brand-col">
+          <span class="sn-logo sn-logo-sm" aria-hidden="true">
+            <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+              <rect width="32" height="32" rx="7" fill="#2563EB" />
+              <path
+                d="M21 9 H10 a3 3 0 0 0 0 6 h9 a2 2 0 0 1 0 4 H10 v3 h11 a5 5 0 0 0 0 -10 H13 a1 1 0 0 1 0 -2 h8 z"
+                fill="#FFFFFF"
+              />
+              <circle cx="25.5" cy="6.5" r="3.2" fill="#F97316" />
+            </svg>
+          </span>
+          <div class="sn-footer-text">
+            <div class="sn-footer-brand-name">Sinov AI</div>
+            <div class="sn-footer-copy">
+              © 2026 Sinov AI LLC. All rights reserved.
+            </div>
+          </div>
+        </div>
+
+        <div class="sn-footer-contact-col">
+          <div class="sn-footer-contact-row">
+            <svg
+              class="sn-footer-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+            <span class="sn-footer-contact-text">
+              Innovation Hub, 54 Mirzo Ulug'bek Avenue, Tashkent 100170,
+              Uzbekistan
+            </span>
+          </div>
+          <div class="sn-footer-contact-row">
+            <svg
+              class="sn-footer-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path
+                d="M4 6h16a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z"
+              />
+              <path d="M2.5 7l9.5 7 9.5-7" />
+            </svg>
+            <a href="mailto:sinovai@gmail.com" class="sn-footer-email"
+              >sinovai@gmail.com</a
+            >
+          </div>
+        </div>
+      </div>
+    </footer>
+
     <!-- Reusable modal (matches admin's pattern) -->
     <div
       id="appModal"
@@ -400,6 +472,6 @@
     </div>
 
     <script src="js/header-scroll.js?v=20260521u"></script>
-    <script src="js/analytics.js?v=20260523c"></script>
+    <script src="js/analytics.js?v=20260523d"></script>
   </body>
 </html>

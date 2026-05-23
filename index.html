@@ -20,7 +20,7 @@
       href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/styles.css?v=20260521z" />
+    <link rel="stylesheet" href="css/styles.css?v=20260523d" />
     <!-- Firebase SDK (compat build for no-bundler vanilla JS) -->
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -56,7 +56,8 @@
           <div class="sn-status-pill" aria-live="polite">
             <span class="sn-pulse-dot" aria-hidden="true"></span>
             <span class="sn-status-text">
-              Proctoring active · <b>67</b> sessions completed this week
+              Proctoring active · <b id="snTotalSessions">…</b> sessions
+              completed so far
             </span>
           </div>
           <div class="sn-lang lang-switcher">
@@ -783,5 +784,68 @@
     <script src="js/verification-photo.js?v=20260521s"></script>
     <script src="js/header-scroll.js?v=20260521u"></script>
     <script src="js/app.js?v=20260523c"></script>
+
+    <!-- ==============================================================
+         Live session counter — populates the "N sessions completed so far"
+         pill in the header from Firestore. Uses the server-side count()
+         aggregation so it transfers no document payloads, only the integer.
+         Fails silently to "0" if Firebase is unreachable (e.g. master-
+         override demo mode). Runs once on page load.
+         ============================================================== -->
+    <script>
+      (function () {
+        var el = document.getElementById("snTotalSessions");
+        if (!el) return;
+        function paint(n) {
+          el.textContent = (typeof n === "number" ? n : 0).toLocaleString();
+        }
+        // Defensive: only proceed when fbDb is ready. firebase-config.js
+        // exposes it synchronously in init, but the inline timing isn't
+        // guaranteed across browsers, so we poll briefly.
+        var tries = 0;
+        function attempt() {
+          tries++;
+          if (
+            window.fbDb &&
+            typeof window.fbDb.collection === "function"
+          ) {
+            try {
+              // count() aggregation — Firestore returns just the number,
+              // not the docs. Cheap and scalable.
+              window.fbDb
+                .collection("submissions")
+                .count()
+                .get()
+                .then(function (snap) {
+                  paint(snap.data().count);
+                })
+                .catch(function (err) {
+                  console.warn(
+                    "[session-counter] count() failed, falling back to 0:",
+                    err && err.code,
+                  );
+                  paint(0);
+                });
+            } catch (err) {
+              console.warn("[session-counter] threw:", err);
+              paint(0);
+            }
+            return;
+          }
+          if (tries < 40) {
+            // ~4 s total at 100 ms intervals
+            setTimeout(attempt, 100);
+          } else {
+            // Firebase never initialized (offline / master-override mode).
+            paint(0);
+          }
+        }
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", attempt);
+        } else {
+          attempt();
+        }
+      })();
+    </script>
   </body>
 </html>
