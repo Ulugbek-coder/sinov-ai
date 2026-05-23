@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2563EB" />
+    <meta
+      name="description"
+      content="Sinov AI — the AI-enhanced exam platform for universities. Modern proctoring, fair grading, personalized feedback."
+    />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="assets/favicon.svg?v=20260521s"
+    />
+    <title>Sinov AI · Exam Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/styles.css?v=20260521x" />
+    <!-- Firebase SDK (compat build for no-bundler vanilla JS) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+    <script src="js/firebase-config.js?v=20260505a"></script>
+    <script src="js/firebase-client.js?v=20260521s"></script>
+  </head>
+  <body class="sn-body lang-uz">
+    <!-- ========================================================== -->
+    <!-- HEADER                                                      -->
+    <!-- ========================================================== -->
+    <header class="sn-header">
+      <div class="sn-header-inner">
+        <a href="#" class="sn-brand" aria-label="Sinov AI home">
+          <span class="sn-logo" aria-hidden="true">
+            <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+              <rect width="32" height="32" rx="7" fill="#2563EB" />
+              <path
+                d="M21 9 H10 a3 3 0 0 0 0 6 h9 a2 2 0 0 1 0 4 H10 v3 h11 a5 5 0 0 0 0 -10 H13 a1 1 0 0 1 0 -2 h8 z"
+                fill="#FFFFFF"
+              />
+              <circle cx="25.5" cy="6.5" r="3.2" fill="#F97316" />
+              <circle cx="25.5" cy="6.5" r="1.3" fill="#FFFFFF" opacity="0.5" />
+            </svg>
+          </span>
+          <span class="sn-wordmark">
+            <span class="sn-wm-1">Sinov</span><span class="sn-wm-2">AI</span>
+          </span>
+        </a>
+
+        <div class="sn-header-right">
+          <div class="sn-status-pill" aria-live="polite">
+            <span class="sn-pulse-dot" aria-hidden="true"></span>
+            <span class="sn-status-text">
+              Proctoring active · <b>67</b> sessions completed this week
+            </span>
+          </div>
+          <div class="sn-lang lang-switcher">
+            <label for="langSwitcher" class="sn-lang-label">
+              <span aria-hidden="true">🌐</span>
+              <span class="sn-lang-text">Language</span>
+            </label>
+            <select
+              id="langSwitcher"
+              class="sn-lang-select"
+              aria-label="Choose secondary language"
+            >
+              <option value="uz">EN · UZ</option>
+              <option value="ru">EN · RU</option>
+            </select>
+          </div>
+          <button
+            id="instructorLoginBtn"
+            class="sn-header-instructor"
+            type="button"
+            aria-label="Instructor login"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 11a4 4 0 100-8 4 4 0 000 8z" />
+              <path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6" />
+            </svg>
+            <span class="sn-hi-text">Instructor Login</span>
+            <span class="sn-hi-arrow" aria-hidden="true">→</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ========================================================== -->
+    <!-- MAIN                                                        -->
+    <!-- ========================================================== -->
+    <main class="sn-main">
+      <div class="sn-bg-grid" aria-hidden="true"></div>
+
+      <!-- HERO -->
+      <section class="sn-hero">
+        <div class="sn-eyebrow">
+          <span class="sn-eyebrow-dot"></span>
+          The AI-enhanced exam platform
+        </div>
+        <h1 class="sn-hero-title">
+          Sit your exam<br />
+          <em>with confidence.</em>
+        </h1>
+        <p class="sn-hero-sub">
+          <span class="sn-hero-sub-en">
+            Modern <b>AI proctoring</b>, fair grading, and personalized
+            <b>AI feedback</b> — built for university-grade exams.
+          </span>
+          <span class="uz">
+            Zamonaviy <b>AI nazorat</b>, adolatli baholash va shaxsiy
+            <b>AI fikr-mulohaza</b> — universitet darajasidagi imtihonlar uchun
+            yaratilgan.
+          </span>
+          <span class="ru">
+            Современное <b>AI-прокторинг</b>, справедливая оценка и
+            персонализированная <b>AI-обратная связь</b> — для университетских
+            экзаменов.
+          </span>
+        </p>
+      </section>
+
+      <!-- AI FEATURES — prominent placement under hero -->
+      <section class="sn-ai-features" aria-label="AI features">
+        <article class="sn-ai-card sn-ai-card--1">
+          <div class="sn-ai-card-icon" aria-hidden="true">
+            <svg
+              viewBox="0 0 32 32"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M16 3 L27 6.5 V15 C27 21.5 22 27 16 29 C10 27 5 21.5 5 15 V6.5 Z"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M10 16 C12 12.5 16 11 16 11 C16 11 20 12.5 22 16 C20 19.5 16 21 16 21 C16 21 12 19.5 10 16 Z"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linejoin="round"
+              />
+              <circle cx="16" cy="16" r="2" fill="currentColor" />
+            </svg>
+          </div>
+          <div class="sn-ai-card-body">
+            <h3 class="sn-ai-card-title">AI Proctoring</h3>
+            <p class="sn-ai-card-desc">
+              <span class="sn-ai-desc-en"
+                >Real-time webcam analysis detects different cheating anomaly
+                events such as phone use, notes use, missing face, multiple
+                faces, and more.</span
+              >
+              <span class="uz"
+                >Real vaqtdagi veb-kamera tahlili turli aldash hodisalarini
+                aniqlaydi: telefon ishlatish, eslatma qarash, yo'q yuz, bir
+                nechta yuzlar va boshqalar.</span
+              >
+              <span class="ru"
+                >Анализ веб-камеры в реальном времени обнаруживает различные
+                нарушения: использование телефона, заглядывание в записи,
+                отсутствие лица, несколько лиц и другие.</span
+              >
+            </p>
+          </div>
+        </article>
+
+        <article class="sn-ai-card sn-ai-card--2">
+          <div class="sn-ai-card-icon" aria-hidden="true">
+            <svg
+              viewBox="0 0 32 32"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M8 5 H24 a2 2 0 0 1 2 2 V26 a2 2 0 0 1 -2 2 H8 a2 2 0 0 1 -2 -2 V7 a2 2 0 0 1 2 -2 Z"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linejoin="round"
+              />
+              <rect
+                x="11"
+                y="3"
+                width="10"
+                height="4"
+                rx="1"
+                stroke="currentColor"
+                stroke-width="2"
+                fill="var(--sn-ember-faint)"
+              />
+              <path
+                d="M10 12 H22"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                opacity="0.35"
+              />
+              <path
+                d="M10 22 H18"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                opacity="0.35"
+              />
+              <path
+                d="M10 17 L13 20 L20 13"
+                stroke="currentColor"
+                stroke-width="2.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </div>
+          <div class="sn-ai-card-body">
+            <h3 class="sn-ai-card-title">Auto Grading</h3>
+            <p class="sn-ai-card-desc">
+              <span class="sn-ai-desc-en"
+                >Real C++ code execution against hidden test cases — instant,
+                fair scores.</span
+              >
+              <span class="uz"
+                >C++ kodi yashirin testlarga qarshi ishga tushiriladi — tezkor,
+                adolatli baholash.</span
+              >
+              <span class="ru"
+                >Реальный запуск C++ кода против скрытых тестов — мгновенная
+                справедливая оценка.</span
+              >
+            </p>
+          </div>
+        </article>
+
+        <article class="sn-ai-card sn-ai-card--3">
+          <div class="sn-ai-card-icon" aria-hidden="true">
+            <svg
+              viewBox="0 0 32 32"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M5 8 a3 3 0 0 1 3 -3 H24 a3 3 0 0 1 3 3 V20 a3 3 0 0 1 -3 3 H14 L8 28 V23 a3 3 0 0 1 -3 -3 Z"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M16 9 L17.6 12.4 L21 14 L17.6 15.6 L16 19 L14.4 15.6 L11 14 L14.4 12.4 Z"
+                fill="currentColor"
+              />
+              <circle
+                cx="22.5"
+                cy="8"
+                r="1.5"
+                fill="currentColor"
+                opacity="0.65"
+              />
+            </svg>
+          </div>
+          <div class="sn-ai-card-body">
+            <h3 class="sn-ai-card-title">AI Personalized Feedback</h3>
+            <p class="sn-ai-card-desc">
+              <span class="sn-ai-desc-en"
+                >A PDF report with topics tailored to what you missed or made
+                mistakes on — and how to fix them.</span
+              >
+              <span class="uz"
+                >Siz adashgan yoki xato qilgan mavzular bo'yicha shaxsiy PDF
+                hisobot — va ularni qanday tuzatish bo'yicha tavsiyalar.</span
+              >
+              <span class="ru"
+                >Персональный PDF-отчёт с темами, по которым вы ошиблись или
+                допустили промахи — и как их исправить.</span
+              >
+            </p>
+          </div>
+        </article>
+      </section>
+
+      <!-- EXAM CARD -->
+      <section class="sn-card" id="snCard">
+        <div class="sn-card-head">
+          <h2 class="sn-card-title">Begin your exam</h2>
+          <p class="sn-card-sub">
+            <span class="uz">Imtihonni boshlash</span>
+            <span class="ru">Начать экзамен</span>
+          </p>
+        </div>
+
+        <!-- STEP 1 — Selection -->
+        <div class="sn-select-stack">
+          <div class="sn-select-row">
+            <label for="universitySelect" class="sn-label">
+              <span class="sn-label-num">01</span>
+              University
+              <span class="sn-label-uz uz">· Universitet</span>
+              <span class="sn-label-ru ru">· Университет</span>
+            </label>
+            <div class="sn-select-wrap">
+              <select id="universitySelect" class="sn-select">
+                <option value="">— Select your university —</option>
+                <option value="NPUU">
+                  National Pedagogical University of Uzbekistan (NPUU)
+                </option>
+              </select>
+              <span class="sn-chev" aria-hidden="true">▾</span>
+            </div>
+          </div>
+
+          <div class="sn-select-row">
+            <label for="facultySelect" class="sn-label">
+              <span class="sn-label-num">02</span>
+              Faculty / Department
+              <span class="sn-label-uz uz">· Fakultet / Bo'lim</span>
+              <span class="sn-label-ru ru">· Факультет / Отделение</span>
+            </label>
+            <div class="sn-select-wrap">
+              <select id="facultySelect" class="sn-select" disabled>
+                <option value="">— Select your faculty —</option>
+                <option value="exact-sciences">School of Exact Sciences</option>
+                <option value="natural-sciences">
+                  Faculty of Natural Sciences
+                </option>
+                <option value="pre-school-education">
+                  Faculty of Pre-School Education
+                </option>
+              </select>
+              <span class="sn-chev" aria-hidden="true">▾</span>
+            </div>
+          </div>
+
+          <div class="sn-select-row">
+            <label for="academicYearSelect" class="sn-label">
+              <span class="sn-label-num">03</span>
+              Academic Year
+              <span class="sn-label-uz uz">· O'quv yili</span>
+              <span class="sn-label-ru ru">· Учебный год</span>
+            </label>
+            <div class="sn-select-wrap">
+              <select id="academicYearSelect" class="sn-select" disabled>
+                <option value="">— Select academic year —</option>
+                <!-- options injected by app.js (current year + previous year) -->
+              </select>
+              <span class="sn-chev" aria-hidden="true">▾</span>
+            </div>
+          </div>
+
+          <div class="sn-select-row">
+            <label for="semesterSelect" class="sn-label">
+              <span class="sn-label-num">04</span>
+              Semester
+              <span class="sn-label-uz uz">· Semestr</span>
+              <span class="sn-label-ru ru">· Семестр</span>
+            </label>
+            <div class="sn-select-wrap">
+              <select id="semesterSelect" class="sn-select" disabled>
+                <option value="">— Select semester —</option>
+                <!-- options injected by app.js with "(current)" labels -->
+              </select>
+              <span class="sn-chev" aria-hidden="true">▾</span>
+            </div>
+          </div>
+
+          <div class="sn-select-row">
+            <label for="courseSelect" class="sn-label">
+              <span class="sn-label-num">05</span>
+              Course / Module
+              <span class="sn-label-uz uz">· Kurs / Modul</span>
+              <span class="sn-label-ru ru">· Курс / Модуль</span>
+            </label>
+            <div class="sn-select-wrap">
+              <select id="courseSelect" class="sn-select" disabled>
+                <option value="">— Select your course —</option>
+                <option value="cpp1">Programming 1 with C++</option>
+              </select>
+              <span class="sn-chev" aria-hidden="true">▾</span>
+            </div>
+          </div>
+
+          <div class="sn-select-row">
+            <label for="examTypeSelect" class="sn-label">
+              <span class="sn-label-num">06</span>
+              Exam
+              <span class="sn-label-uz uz">· Imtihon</span>
+              <span class="sn-label-ru ru">· Экзамен</span>
+            </label>
+            <div class="sn-select-wrap">
+              <select id="examTypeSelect" class="sn-select" disabled>
+                <option value="">— Select your exam —</option>
+                <option value="midterm">Midterm Exam</option>
+                <option value="final">Final Exam</option>
+                <option value="resit">Resit Exam</option>
+                <option value="retake1">Retake Exam 1</option>
+                <option value="retake2">Retake Exam 2</option>
+              </select>
+              <span class="sn-chev" aria-hidden="true">▾</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- REVEAL: shown once exam type selected -->
+        <div class="sn-reveal" id="snReveal" hidden>
+          <!-- A) Format card (if exam is configured) -->
+          <div class="sn-format" id="snFormat" hidden>
+            <div class="sn-format-row">
+              <div class="sn-format-item">
+                <div class="sn-format-num" id="snFormatMc">20</div>
+                <div class="sn-format-label">
+                  Multiple Choice
+                  <span class="sn-fl-second uz">Testlar</span>
+                  <span class="sn-fl-second ru">Тесты</span>
+                </div>
+              </div>
+              <div class="sn-format-divider" aria-hidden="true"></div>
+              <div class="sn-format-item">
+                <div class="sn-format-num" id="snFormatCode">4</div>
+                <div class="sn-format-label">
+                  Coding Problems
+                  <span class="sn-fl-second uz">Kodlash masalalari</span>
+                  <span class="sn-fl-second ru">Задачи</span>
+                </div>
+              </div>
+              <div class="sn-format-divider" aria-hidden="true"></div>
+              <div class="sn-format-item">
+                <div class="sn-format-num">
+                  <span id="snFormatDur">100</span
+                  ><span class="sn-format-unit">min</span>
+                </div>
+                <div class="sn-format-label">
+                  Duration
+                  <span class="sn-fl-second uz">Vaqt</span>
+                  <span class="sn-fl-second ru">Время</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- B) Not-configured state (instructor hasn't set up this exam) -->
+          <div class="sn-not-configured" id="snNotConfigured" hidden>
+            <svg
+              class="sn-nc-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 7v5l3 3" />
+            </svg>
+            <div class="sn-nc-body">
+              <h3 class="sn-nc-title">This exam isn't configured yet</h3>
+              <p class="sn-nc-text">
+                Your instructor hasn't set up this exam yet. Please check back
+                later or choose a different exam.
+              </p>
+              <p class="sn-nc-text uz">
+                O'qituvchingiz bu imtihonni hali sozlamagan. Iltimos, keyinroq
+                tekshiring yoki boshqa imtihonni tanlang.
+              </p>
+              <p class="sn-nc-text ru">
+                Преподаватель ещё не настроил этот экзамен. Пожалуйста,
+                проверьте позже или выберите другой экзамен.
+              </p>
+            </div>
+          </div>
+
+          <!-- C) Configured-exam: student info, schedule, version, start -->
+          <div class="sn-config-fields" id="snConfigFields" hidden>
+            <!-- Student info -->
+            <div class="sn-section">
+              <h3 class="sn-section-title">
+                Your information
+                <span class="muted uz">Talaba ma'lumotlari</span>
+                <span class="muted ru">Информация о студенте</span>
+              </h3>
+
+              <div class="sn-form-row">
+                <label for="studentGroup" class="sn-label-sm">
+                  Group <span class="sn-req">*</span>
+                </label>
+                <div class="sn-select-wrap">
+                  <select id="studentGroup" class="sn-select">
+                    <option value="">— Select your group —</option>
+                    <option value="FM1">FM1</option>
+                    <option value="FM2">FM2</option>
+                    <option value="FM3">FM3</option>
+                    <option value="FM4">FM4</option>
+                    <option value="FM5">FM5</option>
+                    <option value="FM6">FM6</option>
+                    <option value="FM7">FM7</option>
+                    <option value="FIT1">FIT1</option>
+                    <option value="FIT2">FIT2</option>
+                    <option value="FIT3">FIT3</option>
+                    <option value="FIT4">FIT4</option>
+                    <option value="FIT5">FIT5</option>
+                    <option value="FIT6">FIT6</option>
+                    <option value="FAR1">FAR1</option>
+                    <option value="FAR2">FAR2</option>
+                    <option value="FAR3">FAR3</option>
+                  </select>
+                  <span class="sn-chev" aria-hidden="true">▾</span>
+                </div>
+              </div>
+
+              <div class="sn-form-row">
+                <label for="studentId" class="sn-label-sm">
+                  Student ID <span class="sn-req">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="studentId"
+                  class="sn-input"
+                  placeholder="e.g. 230012"
+                  maxlength="6"
+                  inputmode="numeric"
+                  autocomplete="off"
+                />
+                <div class="sn-hint" id="idHint">
+                  Must be exactly 6 digits.
+                  <span class="uz"
+                    >Aynan 6 raqamdan iborat bo'lishi kerak.</span
+                  >
+                  <span class="ru">Должен содержать ровно 6 цифр.</span>
+                </div>
+              </div>
+
+              <div class="sn-form-grid-2">
+                <div class="sn-form-row">
+                  <label for="studentFirstName" class="sn-label-sm">
+                    First name <span class="sn-req">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    id="studentFirstName"
+                    class="sn-input"
+                    placeholder="e.g. Jasurbek"
+                    autocomplete="off"
+                  />
+                </div>
+                <div class="sn-form-row">
+                  <label for="studentLastName" class="sn-label-sm">
+                    Last name <span class="sn-req">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    id="studentLastName"
+                    class="sn-input"
+                    placeholder="e.g. Mahkamov"
+                    autocomplete="off"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Master override banner -->
+            <div
+              id="masterBanner"
+              class="sn-master-banner"
+              style="display: none"
+            >
+              <strong>⚠ Master Override Active</strong> — schedule check
+              bypassed. Use only if Firebase is unreachable on exam day.
+              <span class="uz"
+                >Master rejimi faol — jadval tekshiruvi chetlab o'tilmoqda.
+                Faqat imtihon kunida Firebase ishlamasa foydalaning.</span
+              >
+              <span class="ru"
+                >Активирован режим Master — проверка расписания пропущена.
+                Используйте только при недоступности Firebase в день
+                экзамена.</span
+              >
+            </div>
+
+            <!-- Schedule panel -->
+            <div
+              id="schedulePanel"
+              class="sn-schedule-panel"
+              style="display: none"
+              aria-live="polite"
+            >
+              <div class="sn-sp-head">
+                <div class="sn-sp-label">
+                  Exam window
+                  <span class="uz">· Imtihon oynasi</span>
+                  <span class="ru">· Окно экзамена</span>
+                  <span class="sn-sp-dot" id="spDot" aria-hidden="true"></span>
+                </div>
+                <div class="sn-sp-status" id="spStatus">Checking…</div>
+              </div>
+              <div class="sn-sp-range" id="spRange">&nbsp;</div>
+              <div class="sn-sp-note" id="spNote">&nbsp;</div>
+            </div>
+
+            <!-- Version selection -->
+            <div class="sn-section">
+              <h3 class="sn-section-title">
+                Exam version
+                <span class="muted uz">Imtihon versiyasi</span>
+                <span class="muted ru">Версия экзамена</span>
+              </h3>
+              <div class="sn-version-grid">
+                <div
+                  class="sn-version-card version-card"
+                  data-version="A"
+                  role="button"
+                  tabindex="0"
+                  aria-label="Select Version A"
+                >
+                  <div class="sn-v-label">Version</div>
+                  <div class="sn-v-letter">A</div>
+                </div>
+                <div
+                  class="sn-version-card version-card"
+                  data-version="B"
+                  role="button"
+                  tabindex="0"
+                  aria-label="Select Version B"
+                >
+                  <div class="sn-v-label">Version</div>
+                  <div class="sn-v-letter">B</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Start button -->
+            <button id="startBtn" class="sn-btn-primary" type="button" disabled>
+              <span class="sn-btn-text">Start Exam</span>
+              <svg
+                class="sn-btn-arrow"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+            </button>
+
+            <!-- Post-submit note (right under start button) -->
+            <p class="sn-submit-note">
+              After you click <b>Start Exam</b>, your work will be automatically
+              saved to our server during and at the end of your exam. If
+              auto-save fails, a backup Google Form will appear.
+              <span class="uz"
+                >Imtihon boshlash tugmasi bosilgach, ishingiz imtihon davomida
+                va so'ngida serverga avtomatik saqlanadi. Avto-saqlash
+                muvaffaqiyatsiz bo'lsa, zaxira Google Form ko'rsatiladi.</span
+              >
+              <span class="ru"
+                >После нажатия «Начать экзамен» ваша работа автоматически
+                сохраняется во время и в конце экзамена. Если автосохранение не
+                сработает, появится резервная Google-форма.</span
+              >
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- AI features moved to top, right under hero -->
+    </main>
+
+    <!-- ========================================================== -->
+    <!-- FOOTER                                                      -->
+    <!-- ========================================================== -->
+    <footer class="sn-footer">
+      <div class="sn-footer-inner">
+        <div class="sn-footer-brand-col">
+          <span class="sn-logo sn-logo-sm" aria-hidden="true">
+            <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+              <rect width="32" height="32" rx="7" fill="#2563EB" />
+              <path
+                d="M21 9 H10 a3 3 0 0 0 0 6 h9 a2 2 0 0 1 0 4 H10 v3 h11 a5 5 0 0 0 0 -10 H13 a1 1 0 0 1 0 -2 h8 z"
+                fill="#FFFFFF"
+              />
+              <circle cx="25.5" cy="6.5" r="3.2" fill="#F97316" />
+            </svg>
+          </span>
+          <div class="sn-footer-text">
+            <div class="sn-footer-brand-name">Sinov AI</div>
+            <div class="sn-footer-copy">
+              © 2026 Sinov AI LLC. All rights reserved.
+            </div>
+          </div>
+        </div>
+
+        <div class="sn-footer-contact-col">
+          <div class="sn-footer-contact-row">
+            <svg
+              class="sn-footer-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+            <span class="sn-footer-contact-text">
+              Innovation Hub, 54 Mirzo Ulug'bek Avenue, Tashkent 100170,
+              Uzbekistan
+            </span>
+          </div>
+          <div class="sn-footer-contact-row">
+            <svg
+              class="sn-footer-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path
+                d="M4 6h16a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z"
+              />
+              <path d="M2.5 7l9.5 7 9.5-7" />
+            </svg>
+            <a href="mailto:sinovai@gmail.com" class="sn-footer-email"
+              >sinovai@gmail.com</a
+            >
+          </div>
+        </div>
+      </div>
+    </footer>
+
+    <!-- Modal popup -->
+    <div id="modal" class="modal-overlay" role="dialog" aria-modal="true">
+      <div class="modal" id="modal-box">
+        <div class="modal-body">
+          <div class="modal-icon" id="modal-icon">!</div>
+          <h3 id="modal-title">
+            Title
+            <span class="uz" id="modal-title-uz">Sarlavha</span>
+            <span class="ru" id="modal-title-ru">Заголовок</span>
+          </h3>
+          <p id="modal-text">Message</p>
+          <div
+            class="progress-info"
+            id="modal-progress"
+            style="display: none"
+          ></div>
+        </div>
+        <div class="modal-footer">
+          <button id="modal-cancel" class="modal-btn secondary" type="button">
+            Cancel
+          </button>
+          <button id="modal-ok" class="modal-btn primary" type="button">
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Load scripts -->
+    <script src="js/questions/question-bank.js?v=20260505a"></script>
+    <script src="js/questions/question-bank-new.js?v=20260505a"></script>
+    <script src="js/questions/coding-bank.js?v=20260505a"></script>
+    <script src="js/questions/version-a.js?v=20260505a"></script>
+    <script src="js/questions/version-b.js?v=20260505a"></script>
+    <script src="js/proctoring.js?v=20260521s"></script>
+    <script src="js/verification-photo.js?v=20260521s"></script>
+    <script src="js/header-scroll.js?v=20260521u"></script>
+    <script src="js/app.js?v=20260521w"></script>
+  </body>
+</html>
