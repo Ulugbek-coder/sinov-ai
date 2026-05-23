@@ -84,11 +84,10 @@
   //                  on top of this for chart rendering.
   // _exams:          list of exams the instructor can analyze.
   // _allowedGroups:  groups the current instructor may view.
-  // _currentUserDoc: /instructors/{uid} doc data (role + allowedGroups).
+  //                  null = super admin (sees all groups), [] = none.
   let _allSubmissions = [];
   let _exams = [];
   let _allowedGroups = [];
-  let _currentUserDoc = null;
   let _selectedExamId = "";
   let _selectedGroup = "";
 
@@ -123,7 +122,58 @@
   }
 
   // -----------------------------------------------------------------
-  // Auth gate (mirrors admin.js pattern)
+  // INSTRUCTOR PERMISSIONS — keep in sync with the identical map at
+  // the top of js/admin.js. Both files need the same source of truth
+  // for who can see what.
+  //
+  // To grant access to a new instructor:
+  //   1. Create their Firebase Auth account (Console → Authentication
+  //      → Users → Add user)
+  //   2. Add a lowercase-email entry to BOTH this map AND the matching
+  //      one in admin.js
+  //   3. role: "super"      → sees every group, has the "All groups" option
+  //      role: "instructor" → sees only their assigned groups
+  //   4. groups: null  for super admin (means "every group")
+  //      groups: [...] for restricted (must be one or more group codes)
+  //
+  // FUTURE: refactor to live in a single shared file (e.g. expose on
+  // window.FB.PERMISSIONS via firebase-config.js) so the two maps
+  // can't go out of sync. Not blocking for the hackathon.
+  // -----------------------------------------------------------------
+  const INSTRUCTOR_PERMISSIONS = {
+    // Super admin — sees all groups
+    "u.tursunaliev@npuu.uz": {
+      role: "super",
+      groups: null,
+    },
+    // Restricted instructors
+    "a.ashurov@npuu.uz": {
+      role: "instructor",
+      groups: ["FM3", "FM6"],
+    },
+    "b.tulkinov@npuu.uz": {
+      role: "instructor",
+      groups: ["FM1", "FM2", "FIT1", "FIT2", "FIT3", "FIT4"],
+    },
+    "m.khaydarov@npuu.uz": {
+      role: "instructor",
+      groups: ["FAR3", "FIT6", "FM7"],
+    },
+  };
+
+  function permissionFor(email) {
+    if (!email) return { role: "instructor", groups: [] };
+    const key = String(email).trim().toLowerCase();
+    if (INSTRUCTOR_PERMISSIONS[key]) return INSTRUCTOR_PERMISSIONS[key];
+    // Default for any signed-in instructor whose email isn't in the
+    // map: treat as restricted with no group access. Safer default.
+    return { role: "instructor", groups: [] };
+  }
+
+  // -----------------------------------------------------------------
+  // Auth gate — mirrors admin.js exactly. Reads permissions from the
+  // in-file map above; does NOT query Firestore for an /instructors
+  // document (that collection doesn't exist in this project).
   // -----------------------------------------------------------------
   function initAuthGate() {
     if (!window.fbAuth || !window.fbDb) {
@@ -131,40 +181,30 @@
       return;
     }
     window.fbAuth.onAuthStateChanged(function (user) {
-      if (!user || user.isAnonymous) {
-        // Not logged in (or anonymous) → bounce to login.
+      // Must be a password-based instructor account. Anonymous (student)
+      // sessions and unauthenticated visits bounce to login.
+      const isInstructor =
+        user &&
+        user.providerData &&
+        user.providerData.length &&
+        user.providerData[0].providerId === "password";
+      if (!isInstructor) {
         window.location.href = "login.html";
         return;
       }
-      $("adminEmail").textContent = user.email || "";
 
-      // Verify the user has an /instructors/{uid} doc. If not, send them
-      // away (analytics is instructor-only, same as admin dashboard).
-      window.fbDb
-        .collection("instructors")
-        .doc(user.uid)
-        .get()
-        .then(function (doc) {
-          if (!doc.exists) {
-            // Not provisioned. Mirror admin.js behavior: log out + bounce.
-            window.fbAuth.signOut().finally(function () {
-              window.location.href = "login.html";
-            });
-            return;
-          }
-          _currentUserDoc = doc.data() || {};
-          _allowedGroups = Array.isArray(_currentUserDoc.allowedGroups)
-            ? _currentUserDoc.allowedGroups
-            : [];
-          // Super-admin bypass: empty allowedGroups means "all groups".
-          if (_currentUserDoc.role === "super_admin") _allowedGroups = null;
+      $("adminEmail").textContent = user.email || "(instructor)";
 
-          populateGroupFilter();
-          loadExams();
-        })
-        .catch(function (err) {
-          showError("Auth check failed: " + (err.message || err.code));
-        });
+      // Resolve permission profile from the in-file map.
+      const perm = permissionFor(user.email);
+      // _allowedGroups follows the existing convention used elsewhere
+      // in this file:
+      //   null   → super admin, sees all groups
+      //   [...]  → restricted to the named groups
+      _allowedGroups = perm.role === "super" ? null : (perm.groups || []);
+
+      populateGroupFilter();
+      loadExams();
     });
 
     // Logout button
