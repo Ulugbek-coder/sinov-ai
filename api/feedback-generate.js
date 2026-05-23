@@ -285,21 +285,33 @@ module.exports = async function handler(req, res) {
     "fences, no commentary outside the JSON). Use this exact schema:\n\n" +
     "{\n" +
     '  "en": {\n' +
-    '    "headline": "<one-sentence personal greeting + assessment>",\n' +
+    '    "headline": "<must start exactly with: \\"Dear ' +
+    studentName +
+    ', your exam results have been reviewed\\" — then continue with a one-sentence personal assessment.>",\n' +
     '    "recommendations": [\n' +
     '      { "topic": "<short topic name>", "advice": "<2-3 sentence guidance>", "resources": "<comma-separated resource names following the RESOURCE RULES above>" },\n' +
     '      { "topic": "...", "advice": "...", "resources": "..." },\n' +
     '      { "topic": "...", "advice": "...", "resources": "..." }\n' +
     "    ]\n" +
     "  },\n" +
-    '  "uz": { "headline": "<O\'zbekcha sarlavha>", "recommendations": [ ... 3 items ... ] },\n' +
-    '  "ru": { "headline": "<Заголовок на русском>", "recommendations": [ ... 3 items ... ] }\n' +
+    '  "uz": { "headline": "<must start exactly with: \\"Hurmatli ' +
+    studentName +
+    ", imtihon natijalaringiz ko'rib chiqildi" +
+    '\\" — then continue with the same one-sentence assessment in Uzbek (Latin script).>", "recommendations": [ ... 3 items ... ] },\n' +
+    '  "ru": { "headline": "<must start exactly with: \\"Уважаемый/Уважаемая ' +
+    studentName +
+    ', ваши результаты экзамена были рассмотрены\\" — then continue with the same one-sentence assessment in Russian.>", "recommendations": [ ... 3 items ... ] }\n' +
     "}\n\n" +
-    "Tone: warm and encouraging, never demoralizing. Use the student's " +
-    "name in the headline. Be specific about C++ concepts, not generic " +
-    '("you struggled with operator precedence" not just "you should review ' +
-    'C++"). If the student did very well (>=80%), still pick 3 topics ' +
-    "where they could deepen understanding.\n" +
+    "HEADLINE FORMAT — STRICT:\n" +
+    "  - Every language's headline MUST begin with the exact opening phrase\n" +
+    "    shown in the schema above (Dear / Hurmatli / Уважаемый,Уважаемая).\n" +
+    "  - The student's full name follows the opening phrase, then a comma,\n" +
+    "    then the assessment sentence.\n" +
+    "  - No greetings like 'Hello' or 'Hi' — use the formal opening above.\n\n" +
+    "Tone: warm and encouraging, never demoralizing. Be specific about C++ " +
+    'concepts, not generic ("you struggled with operator precedence" not ' +
+    'just "you should review C++"). If the student did very well (>=80%), ' +
+    "still pick 3 topics where they could deepen understanding.\n" +
     "All three languages must contain the SAME 3 topics in the SAME order.\n" +
     "The Uzbek and Russian resource lists must follow the same RESOURCE\n" +
     "RULES — no textbook/chapter references in any language.\n" +

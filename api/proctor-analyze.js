@@ -177,13 +177,20 @@ module.exports = async function handler(req, res) {
     "student.\n" +
     "  - second_screen:  Set TRUE if you can see another monitor, tablet, " +
     "laptop, or display in addition to what the student is using for the exam.\n" +
+    "  - earphones_visible:  Set TRUE if the student is wearing or has " +
+    "visible ANY listening device — wired earphones with cables, wireless " +
+    "earbuds (AirPods, Galaxy Buds, etc.), over-ear headphones, on-ear " +
+    "headphones, single in-ear earpieces, neck-loop headphones, or any " +
+    "ear-mounted device. Even a single earbud in one ear should be flagged. " +
+    "Cables visible going into ears are also a flag. Hearing aids are NOT " +
+    "flagged.\n" +
     "  - second_person:  Set TRUE only if you can see a REAL HUMAN face/body " +
     "besides the student. Set FALSE if the additional 'face' is a toy, doll, " +
     "stuffed animal, photo on a wall, painting, mirror reflection, or contact " +
     "photo on a phone screen.\n" +
     "  - suspicious:     Set TRUE if anything else looks unusual for an exam " +
-    "(an earpiece, a smartwatch with notifications visible, written notes on " +
-    "the hand/arm, etc.).";
+    "(a smartwatch with notifications visible, written notes on the hand/arm, " +
+    "etc.). Do NOT use this for earphones — that's its own flag now.";
 
   // Closing guidance — applied to every prompt
   const closingGuidance =
@@ -215,11 +222,12 @@ module.exports = async function handler(req, res) {
     '  "description": "<one or two sentences describing what you see>",\n' +
     '  "confidence": <number between 0 and 1>,\n' +
     '  "flags": {\n' +
-    '    "phone_visible":  <boolean>,\n' +
-    '    "second_person":  <boolean>,\n' +
-    '    "notes_visible":  <boolean>,\n' +
-    '    "second_screen":  <boolean>,\n' +
-    '    "suspicious":     <boolean>\n' +
+    '    "phone_visible":      <boolean>,\n' +
+    '    "second_person":      <boolean>,\n' +
+    '    "notes_visible":      <boolean>,\n' +
+    '    "second_screen":      <boolean>,\n' +
+    '    "earphones_visible":  <boolean>,\n' +
+    '    "suspicious":         <boolean>\n' +
     "  }\n" +
     "}";
 
