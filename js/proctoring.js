@@ -90,6 +90,10 @@
       second_person: 30,
       notes_visible: 15,
       second_screen: 18,
+      // earphones_visible: similar threat profile to second_screen — they
+      // enable remote-aided cheating without being obvious in the frame.
+      // Weight sits between notes_visible (15) and second_screen (18).
+      earphones_visible: 17,
       camera_lost: 40,
     },
     RISK_MAX: 100,
@@ -160,6 +164,7 @@
       second_person: 0,
       notes_visible: 0,
       second_screen: 0,
+      earphones_visible: 0,
       camera_lost: 0,
     },
 
@@ -663,7 +668,7 @@
     multiple_faces:
       "Multiple faces detected on camera! / Kamerada bir nechta yuz aniqlandi! / Обнаружено несколько лиц в кадре!",
     face_turned_away:
-      "Face turned away from camera! / Yuz kameradan burilgan! / Лицо отвёрнуто от камеры!",
+      "Face turned away from camera! / Yuz kameradan burilgan! / Лицо отвёрнуto от камеры!",
     phone_visible:
       "Phone detected in the frame! / Kadrda telefon aniqlandi! / Телефон обнаружен в кадре!",
     second_person:
@@ -672,6 +677,8 @@
       "Paper notes detected in the frame! / Kadrda qog'oz yozuvlar aniqlandi! / В кадре обнаружены бумажные записи!",
     second_screen:
       "Second screen detected in the frame! / Kadrda ikkinchi ekran aniqlandi! / В кадре обнаружен второй экран!",
+    earphones_visible:
+      "🎧 Earphones detected — please remove! / Quloqchin aniqlandi — iltimos, oling! / Обнаружены наушники — пожалуйста, снимите!",
     camera_lost:
       "Camera connection lost! / Kamera ulanishi yo'qoldi! / Соединение с камерой потеряно!",
   };
@@ -912,14 +919,15 @@
 
     // --- Rule 3: trigger upgrade ---
     // For no_face / face_turned_away triggers: if Gemini sees a phone
-    // / notes / screen, that's the REAL story. Don't log the original
-    // trigger; log only the gemini-derived label(s).
+    // / notes / screen / earphones, that's the REAL story. Don't log
+    // the original trigger; log only the gemini-derived label(s).
     const isUpgradeTrigger =
       triggerType === "no_face" || triggerType === "face_turned_away";
     const hasContentFlag =
       dedupedPhone ||
       flags.notes_visible ||
       dedupedScreen ||
+      flags.earphones_visible ||
       flags.second_person;
 
     if (isUpgradeTrigger && hasContentFlag) {
@@ -928,6 +936,7 @@
       if (dedupedPhone) upgraded.push("phone_visible");
       if (flags.notes_visible) upgraded.push("notes_visible");
       if (dedupedScreen) upgraded.push("second_screen");
+      if (flags.earphones_visible) upgraded.push("earphones_visible");
       if (flags.second_person) upgraded.push("second_person");
       return upgraded;
     }
@@ -957,13 +966,16 @@
         desc.indexOf("painting") >= 0;
       if (!isArtifact) out.push("second_person");
     }
-    // Any trigger → also log phone / notes / screen if Gemini saw them
+    // Any trigger → also log phone / notes / screen / earphones if
+    // Gemini saw them in this frame.
     if (dedupedPhone && triggerType !== "phone_visible")
       out.push("phone_visible");
     if (flags.notes_visible && triggerType !== "notes_visible")
       out.push("notes_visible");
     if (dedupedScreen && triggerType !== "second_screen")
       out.push("second_screen");
+    if (flags.earphones_visible && triggerType !== "earphones_visible")
+      out.push("earphones_visible");
     return out;
   }
 
@@ -1264,6 +1276,7 @@
     if (phone) triggered.push("phone_visible");
     if (flags.notes_visible) triggered.push("notes_visible");
     if (screen) triggered.push("second_screen");
+    if (flags.earphones_visible) triggered.push("earphones_visible");
     // If nothing flagged, silently drop — natural gesture, not a violation.
     if (!triggered.length) return;
     // Upload the frame as anomaly evidence + log each flagged event.
@@ -1427,6 +1440,7 @@
         if (flags.second_person) triggered.push("second_person");
         if (flags.notes_visible) triggered.push("notes_visible");
         if (screen) triggered.push("second_screen");
+        if (flags.earphones_visible) triggered.push("earphones_visible");
         if (!triggered.length) return;
         // Promote into formal events (respecting cooldowns) — pass the
         // already-uploaded scheduled blob/path so we don't re-upload.
@@ -1633,6 +1647,7 @@
       second_person: 0,
       notes_visible: 0,
       second_screen: 0,
+      earphones_visible: 0,
       camera_lost: 0,
     };
     state.events.forEach((e) => {

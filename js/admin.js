@@ -2613,6 +2613,8 @@
   function openGradingDrawer(submission) {
     const drawer = $("gradingDrawer");
     if (!drawer) return;
+    // Clear any leftover status banner from a previous grading session.
+    setGradingStatus(null);
     if (!submission.codingAnswers || !submission.codingAnswers.length) {
       openModal({
         title: "Cannot grade this submission",
@@ -2994,11 +2996,17 @@
     }
   }
 
-  async function gradeOneProblem(idx) {
+  async function gradeOneProblem(idx, opts) {
     if (!_gradingState) return;
+    const suppressStatus = !!(opts && opts.suppressStatus);
     const p = _gradingState.problems[idx];
     p.state = "grading";
     p.error = null;
+    if (!suppressStatus) {
+      // Solo grade — show our own running banner; success/failure
+      // banner is set after the API call completes.
+      setGradingStatus("running", "AI grading in progress…");
+    }
     renderGradingProblems(); // re-render to show spinner
 
     // Build descriptions for Gemini — flatten the bullet array, strip HTML
@@ -3059,21 +3067,132 @@
     }
     renderGradingProblems();
     updateGradingSummary();
+    if (!suppressStatus) {
+      // Solo grade — post a definitive status banner now that we're done.
+      if (p.state === "graded") {
+        setGradingStatus(
+          "success",
+          "AI Grading completed successfully — problem " + (idx + 1) + " graded",
+        );
+      } else {
+        setGradingStatus(
+          "error",
+          "AI Grading failed — " + (p.error || "unknown error"),
+        );
+      }
+    }
+  }
+
+  // -----------------------------------------------------------------
+  // AI Grading status banner — Issue 7
+  // -----------------------------------------------------------------
+  // Visible feedback for the asynchronous grading flow. Three states:
+  //   running → spinner + "AI grading in progress…"
+  //   success → "AI Grading completed successfully" (auto-clears after 5s)
+  //   error   → "AI Grading failed — {n}/{m} problems errored"
+  //             (sticky until the next action; user can click ✕)
+  // The banner is also used by single-problem grade buttons so it stays
+  // consistent.
+  function setGradingStatus(state, message) {
+    const el = $("sgdGradingStatus");
+    if (!el) return;
+    if (window._sgdStatusTimer) {
+      clearTimeout(window._sgdStatusTimer);
+      window._sgdStatusTimer = null;
+    }
+    el.classList.remove("is-running", "is-success", "is-error");
+    if (state == null) {
+      el.style.display = "none";
+      return;
+    }
+    el.classList.add("is-" + state);
+    el.style.display = "flex";
+    const icon = el.querySelector(".sn-grading-status-icon");
+    const text = el.querySelector(".sn-grading-status-text");
+    if (icon) {
+      if (state === "running") {
+        icon.innerHTML = '<span class="sn-grading-spinner"></span>';
+      } else if (state === "success") {
+        icon.textContent = "✓";
+      } else {
+        icon.textContent = "✕";
+      }
+    }
+    if (text) text.textContent = message;
+    // Auto-clear success after 5s. Errors stay until user takes another
+    // action — they're useful to leave visible while the instructor
+    // reads the per-problem error notes.
+    if (state === "success") {
+      window._sgdStatusTimer = setTimeout(function () {
+        el.style.display = "none";
+        el.classList.remove("is-success");
+      }, 5000);
+    }
   }
 
   async function gradeAllProblems() {
     if (!_gradingState) return;
     const btn = $("sgdGradeAllBtn");
     if (btn) btn.disabled = true;
+    const total = _gradingState.problems.length;
+    let succeeded = 0;
+    let failed = 0;
+    // Initial running state
+    setGradingStatus(
+      "running",
+      "AI grading in progress… 0 of " + total + " complete",
+    );
     // Grade each problem sequentially (avoids overwhelming Gemini's
-    // free-tier RPM limit; ~5-15s per problem × 4 = 20-60s total).
+    // free-tier RPM limit; ~5-15s per problem × N = 20-60s total).
     for (let i = 0; i < _gradingState.problems.length; i++) {
       const p = _gradingState.problems[i];
       // Skip ones already graded
-      if (p.state === "graded") continue;
-      await gradeOneProblem(i);
+      if (p.state === "graded") {
+        succeeded++;
+        setGradingStatus(
+          "running",
+          "AI grading in progress… " +
+            (succeeded + failed) +
+            " of " +
+            total +
+            " complete",
+        );
+        continue;
+      }
+      await gradeOneProblem(i, { suppressStatus: true });
+      if (p.state === "graded") succeeded++;
+      else if (p.state === "failed") failed++;
+      setGradingStatus(
+        "running",
+        "AI grading in progress… " +
+          (succeeded + failed) +
+          " of " +
+          total +
+          " complete",
+      );
     }
     if (btn) btn.disabled = false;
+    if (failed === 0) {
+      setGradingStatus(
+        "success",
+        "AI Grading completed successfully — " +
+          succeeded +
+          " of " +
+          total +
+          " problems graded",
+      );
+    } else {
+      setGradingStatus(
+        "error",
+        "AI Grading completed with errors — " +
+          succeeded +
+          " of " +
+          total +
+          " graded, " +
+          failed +
+          " failed. See per-problem details below.",
+      );
+    }
   }
 
   function updateGradingSummary() {

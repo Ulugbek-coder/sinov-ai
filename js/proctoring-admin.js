@@ -160,6 +160,7 @@
       "#proctor-admin-box .pa-tag-second_person{color:#991B1B}" +
       "#proctor-admin-box .pa-tag-notes_visible{color:#92400E}" +
       "#proctor-admin-box .pa-tag-second_screen{color:#1E40AF}" +
+      "#proctor-admin-box .pa-tag-earphones_visible{color:#7C2D12}" +
       "#proctor-admin-box .pa-tag-camera_lost{color:#1F2937}" +
       "#proctor-admin-box .pa-tag-scheduled{color:#1E40AF}" +
       // ---- Student Information card (Issue #10) ----
@@ -408,6 +409,12 @@
         emoji: "🖥️",
         label: "Second Screen Detection",
         count: counts.second_screen || 0,
+      },
+      {
+        key: "earphones_visible",
+        emoji: "🎧",
+        label: "Earphones Detection",
+        count: counts.earphones_visible || 0,
       },
       {
         key: "camera_lost",

@@ -229,30 +229,36 @@
 
   function localFallback(studentName, wrongOrSkipped) {
     const n = wrongOrSkipped.length;
+    // FIX (May 23): standardized headline opening across both Gemini and
+    // fallback paths. The student should see the same formal greeting
+    // regardless of which code path produced the feedback.
+    //   en: "Dear NAME, your exam results have been reviewed and ..."
+    //   uz: "Hurmatli NAME, imtihon natijalaringiz ko'rib chiqildi va ..."
+    //   ru: "Уважаемый/Уважаемая NAME, ваши результаты экзамена были рассмотрены и ..."
     const enHead =
       n === 0
-        ? "Excellent work, " +
+        ? "Dear " +
           studentName +
-          "! You answered every multiple-choice question correctly."
-        : "Nice effort, " +
+          ", your exam results have been reviewed and you answered every multiple-choice question correctly — excellent work!"
+        : "Dear " +
           studentName +
-          ". Here are some topics to review before your next exam.";
+          ", your exam results have been reviewed and we've identified a few topics worth revisiting before your next exam.";
     const uzHead =
       n === 0
-        ? "Ajoyib natija, " +
+        ? "Hurmatli " +
           studentName +
-          "! Siz barcha test savollariga to'g'ri javob berdingiz."
-        : "Yaxshi harakat, " +
+          ", imtihon natijalaringiz ko'rib chiqildi va siz barcha test savollariga to'g'ri javob berdingiz — ajoyib natija!"
+        : "Hurmatli " +
           studentName +
-          ". Keyingi imtihondan oldin ko'rib chiqishingiz kerak bo'lgan mavzular.";
+          ", imtihon natijalaringiz ko'rib chiqildi va keyingi imtihondan oldin takrorlash kerak bo'lgan bir nechta mavzular aniqlandi.";
     const ruHead =
       n === 0
-        ? "Отличная работа, " +
+        ? "Уважаемый/Уважаемая " +
           studentName +
-          "! Вы правильно ответили на все вопросы с выбором ответа."
-        : "Хорошая попытка, " +
+          ", ваши результаты экзамена были рассмотрены, и Вы правильно ответили на все вопросы с выбором ответа — отличная работа!"
+        : "Уважаемый/Уважаемая " +
           studentName +
-          ". Темы для повторения перед следующим экзаменом.";
+          ", ваши результаты экзамена были рассмотрены, и мы выявили несколько тем, которые стоит повторить перед следующим экзаменом.";
 
     const enRecs = [
       {

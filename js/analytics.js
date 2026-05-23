@@ -77,6 +77,107 @@
   }
 
   // -----------------------------------------------------------------
+  // Data schema bridges — defensive readers for fields that are
+  // stored in inconsistent shapes across versions of the platform.
+  // -----------------------------------------------------------------
+  //
+  // FIX (May 23, Round 7 hotfix): the submission upload helper
+  // (firebase-client.js) stores time-used as a STRING in the format
+  // "Xm Ys" / "Xm" / "Ys", NOT as a numeric seconds field. Earlier
+  // analytics code assumed `s.timeUsed` was already a number of
+  // seconds — every test failed `typeof === "number"`, so the time
+  // chart and time-KPI showed empty.
+  //
+  // Accepts:
+  //   number          → returned as-is (assumed seconds)
+  //   "Xm Ys"         → X*60 + Y
+  //   "Xm"            → X*60
+  //   "Ys"            → Y
+  //   "Xm\u00A0Ys"    → same as "Xm Ys" (non-breaking space variant)
+  //   anything else   → null
+  function parseTimeUsed(v) {
+    if (typeof v === "number" && isFinite(v) && v >= 0) return v;
+    if (typeof v !== "string") return null;
+    const txt = v.replace(/\u00A0/g, " ").trim();
+    if (!txt) return null;
+    let m = 0,
+      s = 0,
+      matched = false;
+    const mMatch = txt.match(/(\d+)\s*m/i);
+    if (mMatch) {
+      m = parseInt(mMatch[1], 10);
+      matched = true;
+    }
+    const sMatch = txt.match(/(\d+)\s*s/i);
+    if (sMatch) {
+      s = parseInt(sMatch[1], 10);
+      matched = true;
+    }
+    if (!matched) {
+      // Maybe plain digits — interpret as seconds
+      const onlyDigits = txt.match(/^(\d+)$/);
+      if (onlyDigits) return parseInt(onlyDigits[1], 10);
+      return null;
+    }
+    return m * 60 + s;
+  }
+
+  // FIX (May 23, Round 7 hotfix): firebase-client.js does NOT save the
+  // proctoring summary as a nested `proctorSummary` object — it
+  // flattens it into top-level fields (`proctorRiskScore`,
+  // `proctorRiskBand`, `proctorEventCounts`, `proctorTotalEvents`,
+  // etc.). The earlier analytics code read `s.proctorSummary.riskBand`
+  // which never existed → all proctoring charts showed empty.
+  //
+  // This helper normalizes both shapes (in case future versions of
+  // the platform switch to nested storage, this still works) and
+  // returns a single canonical object:
+  //   { riskScore, riskBand, eventCounts, totalEvents, hasData }
+  // hasData is true iff at least the risk-band field is present.
+  function extractProctorData(s) {
+    // Prefer flat fields (current storage layout)
+    const flatHasBand = typeof s.proctorRiskBand === "string";
+    const flatHasScore = typeof s.proctorRiskScore === "number";
+    if (flatHasBand || flatHasScore) {
+      return {
+        riskScore: flatHasScore ? s.proctorRiskScore : 0,
+        riskBand: flatHasBand ? s.proctorRiskBand : null,
+        eventCounts:
+          s.proctorEventCounts && typeof s.proctorEventCounts === "object"
+            ? s.proctorEventCounts
+            : {},
+        totalEvents:
+          typeof s.proctorTotalEvents === "number" ? s.proctorTotalEvents : 0,
+        hasData: true,
+      };
+    }
+    // Fall back to nested shape (defensive, for hypothetical future
+    // schema or any legacy data that does store it nested)
+    const nested = s.proctorSummary;
+    if (nested && typeof nested === "object") {
+      return {
+        riskScore: typeof nested.riskScore === "number" ? nested.riskScore : 0,
+        riskBand:
+          typeof nested.riskBand === "string" ? nested.riskBand : null,
+        eventCounts:
+          nested.eventCounts && typeof nested.eventCounts === "object"
+            ? nested.eventCounts
+            : {},
+        totalEvents:
+          typeof nested.totalEvents === "number" ? nested.totalEvents : 0,
+        hasData: true,
+      };
+    }
+    return {
+      riskScore: 0,
+      riskBand: null,
+      eventCounts: {},
+      totalEvents: 0,
+      hasData: false,
+    };
+  }
+
+  // -----------------------------------------------------------------
   // Module state
   // -----------------------------------------------------------------
   // _allSubmissions: latest fetch from Firestore (already filtered by
@@ -416,7 +517,7 @@
     // Avg completion time (seconds)
     const times = subs
       .map(function (s) {
-        return typeof s.timeUsed === "number" ? s.timeUsed : null;
+        return parseTimeUsed(s.timeUsed);
       })
       .filter(function (t) {
         return t != null && t > 0;
@@ -430,8 +531,8 @@
     // Total proctoring events
     let totalEvents = 0;
     subs.forEach(function (s) {
-      const p = s.proctorSummary || {};
-      if (typeof p.totalEvents === "number") totalEvents += p.totalEvents;
+      const p = extractProctorData(s);
+      if (p.hasData) totalEvents += p.totalEvents;
     });
 
     // AI grading completion
@@ -705,7 +806,8 @@
 
     const times = subs
       .map(function (s) {
-        return typeof s.timeUsed === "number" ? s.timeUsed / 60 : null; // in minutes
+        const sec = parseTimeUsed(s.timeUsed);
+        return sec != null ? sec / 60 : null; // in minutes
       })
       .filter(function (t) {
         return t != null && t >= 0;
@@ -881,6 +983,7 @@
       { key: "second_person", label: "Second person" },
       { key: "notes_visible", label: "Notes visible" },
       { key: "second_screen", label: "Second screen" },
+      { key: "earphones_visible", label: "Earphones 🎧" },
       { key: "camera_lost", label: "Camera lost" },
     ];
     const counts = {};
@@ -889,16 +992,16 @@
     });
     let totalProctored = 0;
     subs.forEach(function (s) {
-      const p = s.proctorSummary || {};
-      const ec = p.eventCounts || {};
-      let had = false;
+      const p = extractProctorData(s);
+      const ec = p.eventCounts;
+      let hadCount = false;
       eventTypes.forEach(function (t) {
         if (typeof ec[t.key] === "number") {
           counts[t.key] += ec[t.key];
-          had = true;
+          hadCount = true;
         }
       });
-      if (had || (typeof p.totalEvents === "number" && p.totalEvents >= 0)) {
+      if (p.hasData || hadCount) {
         totalProctored++;
       }
     });
@@ -1018,6 +1121,7 @@
       phone_visible: "#dc2626",
       second_person: "#dc2626",
       notes_visible: "#dc2626",
+      earphones_visible: "#dc2626",
       multiple_faces: "#ef4444",
       face_turned_away: "#f97316",
       no_face: "#f59e0b",
@@ -1045,8 +1149,8 @@
     const counts = { clean: 0, minor: 0, significant: 0, critical: 0 };
     let totalWithProctor = 0;
     subs.forEach(function (s) {
-      const p = s.proctorSummary || {};
-      if (typeof p.riskBand === "string" && counts[p.riskBand] != null) {
+      const p = extractProctorData(s);
+      if (p.riskBand && counts[p.riskBand] != null) {
         counts[p.riskBand]++;
         totalWithProctor++;
       }
@@ -1323,15 +1427,15 @@
     const tbody = $("anRiskTbody");
     tbody.innerHTML = "";
 
-    // Sort by risk score descending. Records without proctorSummary
+    // Sort by risk score descending. Records without proctoring data
     // are sorted to the end with risk 0. We then take top 10.
     const ranked = subs
       .map(function (s) {
-        const p = s.proctorSummary || {};
+        const p = extractProctorData(s);
         return {
           name: [s.firstName, s.lastName].filter(Boolean).join(" ") || "—",
           group: s.group || "—",
-          risk: typeof p.riskScore === "number" ? p.riskScore : 0,
+          risk: p.riskScore,
           band: p.riskBand || "—",
           tabs: typeof s.tabSwitches === "number" ? s.tabSwitches : 0,
           grade: computeFinalGrade(s),
