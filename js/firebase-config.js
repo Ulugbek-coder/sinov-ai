@@ -13,15 +13,15 @@
 // =============================================================
 
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyCCzWqREO99tSLt3kdRs0gAuXM21fiTyNI",
-  authDomain: "npuu-cpp-finalexam-spring-2026.firebaseapp.com",
-  projectId: "npuu-cpp-finalexam-spring-2026",
-  storageBucket: "npuu-cpp-finalexam-spring-2026.firebasestorage.app",
-  messagingSenderId: "617420151389",
-  appId: "1:617420151389:web:a5ab0e096a701ff4720bb4",
+  apiKey: "AIzaSyBmyCNkeBlyBv_va2MdrsTRlz1s72C-CpU",
+  authDomain: "sinov-ai-platform.firebaseapp.com",
+  projectId: "sinov-ai-platform",
+  storageBucket: "sinov-ai-platform.firebasestorage.app",
+  messagingSenderId: "71938984329",
+  appId: "1:71938984329:web:771e15cec813e69b13f958",
 };
 
-const MASTER_OVERRIDE_PASSWORD = "npuu-2026-backup-key";
+const MASTER_OVERRIDE_PASSWORD = "sinov-ai-2026-judges-go-tashkent";
 
 // Group IDs that the schedule system and Storage paths use.
 // MUST match the groups offered on the welcome form.
