@@ -1,0 +1,180 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -------------------------------------------------------------
+    // /schedules/{group}
+    //   Legacy collection — kept for backward compatibility with
+    //   existing student submissions in-flight. New schedules go to
+    //   /exam_schedules (see below). Once we migrate to a fresh
+    //   Firebase project for the hackathon, this can be deleted.
+    //   Readable by anyone (students need to see their group's window
+    //   from the welcome page, without logging in).
+    //   Writable ONLY by authenticated instructors (email/password),
+    //   and only for the 17 known group IDs.
+    // -------------------------------------------------------------
+    match /schedules/{groupId} {
+      allow read: if true;
+
+      allow write: if
+        request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'password'
+        && groupId in [
+             'FM1', 'FM2', 'FM3', 'FM4', 'FM5', 'FM6', 'FM7',
+             'FIT1', 'FIT2', 'FIT3', 'FIT4', 'FIT5', 'FIT6',
+             'FAR1', 'FAR2', 'FAR3'
+           ];
+    }
+
+    // -------------------------------------------------------------
+    // /exam_schedules/{scheduleId}  (Admin Dashboard — per-exam scheduling)
+    //   Stores per-exam-per-group schedule windows. Doc ID is the
+    //   composite `${examId}__${groupId}`. Each doc has an `examId`
+    //   field for direct filtering and a `group` field for display.
+    //   READ: anyone (students need to see their group's exam window).
+    //   WRITE: password-authenticated users (UI restricts to super
+    //   admin via INSTRUCTOR_PERMISSIONS).
+    // -------------------------------------------------------------
+    match /exam_schedules/{scheduleId} {
+      allow read: if true;
+      allow write: if
+        request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'password';
+    }
+
+    // -------------------------------------------------------------
+    // /submissions/{autoId}
+    //   Students are authenticated anonymously, so they may CREATE a
+    //   submission document. They cannot read/update/delete anyone's.
+    //   Instructors (password auth) may read everything; they do not
+    //   need to modify submissions after the fact.
+    //   `examId` is optional (legacy submissions lack it). Versions
+    //   now allow A through D (admin dashboard supports up to 4).
+    // -------------------------------------------------------------
+    match /submissions/{submissionId} {
+      allow create: if
+        request.auth != null
+        && request.resource.data.keys().hasAll(
+             ['group', 'studentId', 'firstName', 'lastName', 'version']
+           )
+        && request.resource.data.group in [
+             'FM1', 'FM2', 'FM3', 'FM4', 'FM5', 'FM6', 'FM7',
+             'FIT1', 'FIT2', 'FIT3', 'FIT4', 'FIT5', 'FIT6',
+             'FAR1', 'FAR2', 'FAR3'
+           ]
+        && request.resource.data.version in ['A', 'B', 'C', 'D']
+        && request.resource.data.studentId is string
+        && request.resource.data.studentId.matches('^[0-9]{6}$');
+
+      allow read: if
+        request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'password';
+
+      // Instructors (password auth) may delete submissions from the admin
+      // dashboard (e.g. to remove a test submission or an accidental duplicate).
+      // Students (anonymous auth) cannot delete.
+      allow delete: if
+        request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'password';
+
+      // Feature 6: AI Code Auto-Grader stores AI scores + instructor
+      // overrides + the computed final grade on the submission doc.
+      // Only password-authenticated users (instructors) may write these
+      // fields. Students (anonymous auth) cannot modify submissions
+      // after they're created.
+      //
+      // Note: production Firestore rules cannot easily restrict which
+      // FIELDS get updated — we rely on the admin UI to only write the
+      // grading-related fields. Defense in depth: only an authenticated
+      // instructor can reach this code path at all.
+      allow update: if
+        request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'password';
+    }
+
+    // -------------------------------------------------------------
+    // /config/{docId}
+    //   Used for exam_seeds (question-refresh feature).
+    //   READ: anyone. WRITE: instructors only.
+    // -------------------------------------------------------------
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if
+        request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'password';
+    }
+
+    // -------------------------------------------------------------
+    // /exams/{examId}  (Admin Dashboard — exam settings)
+    //   Each document describes one configured exam: course, type,
+    //   academic year, semester, duration, MC/coding counts, versions,
+    //   and active state. Doc IDs are deterministic:
+    //   `${university}_${course}_${academicYear}_${semester}_${examType}`
+    //   so the welcome page can fetch a specific exam in one round trip.
+    //
+    //   READ: anyone (students need it on the welcome page to populate
+    //   the format card before they're authenticated).
+    //   WRITE: any password-authenticated user (UI-level INSTRUCTOR_PERMISSIONS
+    //   gating in admin.js restricts to super admin only).
+    // -------------------------------------------------------------
+    match /exams/{examId} {
+      allow read: if true;
+      allow write: if
+        request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'password';
+
+      // Per-exam refresh seeds (Feature: per-exam refresh, May 2026).
+      // Lives at /exams/{examId}/seeds/{docId}, typically docId="current".
+      // Students need to read this on the welcome page (anonymously)
+      // to know which questions to load. Only instructors (password
+      // auth) may write.
+      match /seeds/{seedDocId} {
+        allow read: if true;
+        allow write: if
+          request.auth != null
+          && request.auth.token.firebase.sign_in_provider == 'password';
+      }
+    }
+
+    // -------------------------------------------------------------
+    // /proctoring_events/{autoId}  (Feature 1 — AI Webcam Proctoring)
+    //   Students (anonymous auth) may CREATE event records during the
+    //   exam. They cannot read/update/delete anything. Each event must
+    //   include the required fields and a valid group/studentId.
+    //   Instructors (password auth) may READ and DELETE events. They
+    //   never need to update events after the fact.
+    // -------------------------------------------------------------
+    match /proctoring_events/{eventId} {
+      allow create: if
+        request.auth != null
+        && request.resource.data.keys().hasAll(
+             ['sessionId', 'group', 'studentId', 'type', 'clientAt']
+           )
+        && request.resource.data.group in [
+             'FM1', 'FM2', 'FM3', 'FM4', 'FM5', 'FM6', 'FM7',
+             'FIT1', 'FIT2', 'FIT3', 'FIT4', 'FIT5', 'FIT6',
+             'FAR1', 'FAR2', 'FAR3'
+           ]
+        && request.resource.data.studentId is string
+        && request.resource.data.studentId.matches('^[0-9]{6}$')
+        && request.resource.data.type in [
+             'no_face', 'multiple_faces', 'face_turned_away',
+             'phone_visible', 'second_person',
+             'notes_visible', 'second_screen',
+             'camera_lost'
+           ]
+        && request.resource.data.sessionId is string
+        && request.resource.data.sessionId.size() < 200;
+
+      allow read: if
+        request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'password';
+
+      allow delete: if
+        request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'password';
+
+      allow update: if false;
+    }
+  }
+}
