@@ -668,17 +668,32 @@
       // Color gradient: red (low scores) → amber (mid) → green (high)
       const color = scoreBinColor(i);
 
-      svg.appendChild(
-        svgEl("rect", {
-          x: x,
-          y: y,
-          width: barW,
-          height: Math.max(barH, count > 0 ? 2 : 0),
-          fill: color,
-          rx: 4,
-          ry: 4,
-        }),
+      const xLo = i * 10;
+      const xHi = i === 9 ? 100 : i * 10 + 9;
+      const scoreRect = svgEl("rect", {
+        x: x,
+        y: y,
+        width: barW,
+        height: Math.max(barH, count > 0 ? 2 : 0),
+        fill: color,
+        rx: 4,
+        ry: 4,
+        class: "sn-an-bar",
+      });
+      scoreRect.appendChild(
+        svgEl(
+          "title",
+          {},
+          "Scores " +
+            xLo +
+            "–" +
+            xHi +
+            ": " +
+            count +
+            (count === 1 ? " student" : " students"),
+        ),
       );
+      svg.appendChild(scoreRect);
 
       // Count label above bar (only if count > 0)
       if (count > 0) {
@@ -751,12 +766,15 @@
       }, 0) / grades.length;
     const stddev = Math.sqrt(variance);
     $("anScoreStats").innerHTML =
-      "<b>Mean:</b> " +
+      '<span class="sn-an-stat sn-an-stat-mean">Mean ' +
       fmtNum(mean, 1) +
-      "  ·  <b>Median:</b> " +
+      '</span>' +
+      '<span class="sn-an-stat sn-an-stat-median">Median ' +
       fmtNum(median, 1) +
-      "  ·  <b>Std dev:</b> " +
-      fmtNum(stddev, 1);
+      '</span>' +
+      '<span class="sn-an-stat sn-an-stat-stddev">Std dev ' +
+      fmtNum(stddev, 1) +
+      '</span>';
   }
 
   function scoreBinColor(binIdx) {
@@ -798,143 +816,210 @@
   }
 
   // =================================================================
-  // TIME-TO-COMPLETION DISTRIBUTION
+  // COMPLETION TIME — horizontal lollipop chart
+  // -----------------------------------------------------------------
+  // Why lollipop over histogram: with small N (a hackathon-day demo
+  // typically shows 2–20 submissions), binning into 10 buckets looks
+  // terrible — one tall column at "0-9 min" tells you nothing useful.
+  // A lollipop lays each individual submission out as a small dot on
+  // an absolute time axis, sorted fastest → slowest. You can see at
+  // a glance: clusters, outliers, who finished early. Mean and median
+  // are overlaid as vertical reference lines with colored legends.
   // =================================================================
   function renderTimeChart(subs) {
     const svg = $("anTimeChart");
     clearSvg(svg);
 
-    const times = subs
+    // Build {minutes, name, group} so each dot can label itself on hover.
+    const points = subs
       .map(function (s) {
         const sec = parseTimeUsed(s.timeUsed);
-        return sec != null ? sec / 60 : null; // in minutes
+        if (sec == null || sec < 0) return null;
+        return {
+          minutes: sec / 60,
+          name: [s.firstName, s.lastName].filter(Boolean).join(" ") || "—",
+          group: s.group || "",
+        };
       })
-      .filter(function (t) {
-        return t != null && t >= 0;
+      .filter(Boolean)
+      .sort(function (a, b) {
+        return a.minutes - b.minutes;
       });
 
-    if (!times.length) {
+    if (!points.length) {
       renderChartEmpty(svg, "No timing data available", 600, 280);
       $("anTimeStats").textContent = "";
       return;
     }
 
-    // Find exam duration to set bin range; default 100 if missing
+    // Exam duration for x-axis range
     const exam = _exams.find(function (e) {
       return e.id === _selectedExamId;
     });
-    const duration =
+    const allowed =
       exam && typeof exam.duration === "number" && exam.duration > 0
         ? exam.duration
         : 100;
+    const maxX = Math.max(allowed, Math.max.apply(null, points.map((p) => p.minutes)));
 
-    // 10 equal bins covering 0 → duration (cap times at duration for binning)
-    const binCount = 10;
-    const binSize = duration / binCount;
-    const bins = new Array(binCount).fill(0);
-    times.forEach(function (t) {
-      let idx = Math.floor(t / binSize);
-      if (idx >= binCount) idx = binCount - 1;
-      if (idx < 0) idx = 0;
-      bins[idx]++;
-    });
-
-    const maxCount = Math.max(...bins);
+    // Layout
     const w = 600;
     const h = 280;
-    const padL = 44;
-    const padR = 20;
-    const padT = 20;
-    const padB = 44;
+    const padL = 48;
+    const padR = 24;
+    const padT = 30;
+    const padB = 50;
     const chartW = w - padL - padR;
     const chartH = h - padT - padB;
-    const barGap = 6;
-    const barW = (chartW - barGap * (binCount - 1)) / binCount;
+    const rowH = chartH / Math.max(points.length, 1);
 
-    const ticks = niceTicks(maxCount, 4);
-    ticks.forEach(function (tval) {
-      const y = padT + chartH - (tval / ticks[ticks.length - 1]) * chartH;
+    // X-axis ticks (5 evenly spaced)
+    const xTickCount = 5;
+    for (let i = 0; i <= xTickCount; i++) {
+      const v = (i / xTickCount) * maxX;
+      const x = padL + (v / maxX) * chartW;
       svg.appendChild(
         svgEl("line", {
-          x1: padL,
-          y1: y,
-          x2: w - padR,
-          y2: y,
+          x1: x,
+          y1: padT,
+          x2: x,
+          y2: padT + chartH,
           stroke: "#e5e7eb",
           "stroke-width": 1,
-          "stroke-dasharray": tval === 0 ? "0" : "3 3",
+          "stroke-dasharray": i === 0 ? "0" : "3 3",
         }),
       );
       svg.appendChild(
         svgEl(
           "text",
           {
-            x: padL - 8,
-            y: y + 4,
-            "text-anchor": "end",
+            x: x,
+            y: padT + chartH + 16,
+            "text-anchor": "middle",
             "font-size": 11,
             "font-family": "Inter, system-ui, sans-serif",
             fill: "#6b7280",
           },
-          String(tval),
+          fmtNum(v, 0) + " min",
         ),
       );
-    });
+    }
 
-    bins.forEach(function (count, i) {
-      const x = padL + i * (barW + barGap);
-      const barH = (count / ticks[ticks.length - 1]) * chartH;
-      const y = padT + chartH - barH;
+    // Compute mean / median
+    const mean =
+      points.reduce(function (a, b) {
+        return a + b.minutes;
+      }, 0) / points.length;
+    const sorted = points.map((p) => p.minutes).slice().sort((a, b) => a - b);
+    const median =
+      sorted.length % 2
+        ? sorted[(sorted.length - 1) / 2]
+        : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
+    const minT = sorted[0];
+    const maxT = sorted[sorted.length - 1];
 
+    // Mean reference line — purple
+    const meanX = padL + (mean / maxX) * chartW;
+    svg.appendChild(
+      svgEl("line", {
+        x1: meanX,
+        y1: padT - 2,
+        x2: meanX,
+        y2: padT + chartH + 2,
+        stroke: "#7c3aed",
+        "stroke-width": 2,
+        "stroke-dasharray": "5 4",
+        opacity: 0.7,
+      }),
+    );
+    svg.appendChild(
+      svgEl(
+        "text",
+        {
+          x: meanX,
+          y: padT - 6,
+          "text-anchor": "middle",
+          "font-size": 10,
+          "font-weight": 600,
+          "font-family": "Inter, system-ui, sans-serif",
+          fill: "#7c3aed",
+        },
+        "Mean " + fmtNum(mean, 1) + "m",
+      ),
+    );
+
+    // Median reference line — green (only if different enough from mean to be visible)
+    const medianX = padL + (median / maxX) * chartW;
+    if (Math.abs(medianX - meanX) > 28) {
       svg.appendChild(
-        svgEl("rect", {
-          x: x,
-          y: y,
-          width: barW,
-          height: Math.max(barH, count > 0 ? 2 : 0),
-          fill: "#2563EB",
-          opacity: 0.75 + (i / binCount) * 0.25, // deeper as time progresses
-          rx: 4,
-          ry: 4,
+        svgEl("line", {
+          x1: medianX,
+          y1: padT - 2,
+          x2: medianX,
+          y2: padT + chartH + 2,
+          stroke: "#16a34a",
+          "stroke-width": 2,
+          "stroke-dasharray": "5 4",
+          opacity: 0.7,
         }),
       );
-
-      if (count > 0) {
-        svg.appendChild(
-          svgEl(
-            "text",
-            {
-              x: x + barW / 2,
-              y: y - 6,
-              "text-anchor": "middle",
-              "font-size": 11,
-              "font-weight": 600,
-              "font-family": "Inter, system-ui, sans-serif",
-              fill: "#1f2937",
-            },
-            String(count),
-          ),
-        );
-      }
-
-      const binStart = Math.round(i * binSize);
-      const binEnd = Math.round((i + 1) * binSize);
       svg.appendChild(
         svgEl(
           "text",
           {
-            x: x + barW / 2,
-            y: padT + chartH + 18,
+            x: medianX,
+            y: padT - 6,
             "text-anchor": "middle",
             "font-size": 10,
+            "font-weight": 600,
             "font-family": "Inter, system-ui, sans-serif",
-            fill: "#6b7280",
+            fill: "#16a34a",
           },
-          binStart + "–" + binEnd,
+          "Median " + fmtNum(median, 1) + "m",
         ),
       );
+    }
+
+    // Lollipops — one row per submission
+    points.forEach(function (p, i) {
+      const y = padT + i * rowH + rowH / 2;
+      const x = padL + (p.minutes / maxX) * chartW;
+      // Stem (subtle gray line from axis to dot)
+      svg.appendChild(
+        svgEl("line", {
+          x1: padL,
+          y1: y,
+          x2: x,
+          y2: y,
+          stroke: "#cbd5e1",
+          "stroke-width": 1,
+          opacity: 0.5,
+        }),
+      );
+      // Dot with hover tooltip via <title>
+      const dot = svgEl("circle", {
+        cx: x,
+        cy: y,
+        r: 5,
+        fill: "#2563eb",
+        stroke: "#ffffff",
+        "stroke-width": 2,
+        class: "sn-an-lollipop-dot",
+      });
+      const title = svgEl(
+        "title",
+        {},
+        p.name +
+          (p.group ? " · " + p.group : "") +
+          " — " +
+          fmtNum(p.minutes, 1) +
+          " min",
+      );
+      dot.appendChild(title);
+      svg.appendChild(dot);
     });
 
+    // X-axis caption
     svg.appendChild(
       svgEl(
         "text",
@@ -947,24 +1032,24 @@
           "font-family": "Inter, system-ui, sans-serif",
           fill: "#374151",
         },
-        "Minutes spent (allowed: " + duration + " min)",
+        "Minutes spent (allowed: " + allowed + " min)",
       ),
     );
 
-    const mean =
-      times.reduce(function (a, b) {
-        return a + b;
-      }, 0) / times.length;
-    const min = Math.min(...times);
-    const max = Math.max(...times);
+    // Stats line — colored legend pills
     $("anTimeStats").innerHTML =
-      "<b>Avg:</b> " +
+      '<span class="sn-an-stat sn-an-stat-mean">Mean ' +
       fmtNum(mean, 1) +
-      " min  ·  <b>Min:</b> " +
-      fmtNum(min, 1) +
-      " min  ·  <b>Max:</b> " +
-      fmtNum(max, 1) +
-      " min";
+      ' min</span>' +
+      '<span class="sn-an-stat sn-an-stat-median">Median ' +
+      fmtNum(median, 1) +
+      ' min</span>' +
+      '<span class="sn-an-stat sn-an-stat-min">Min ' +
+      fmtNum(minT, 1) +
+      ' min</span>' +
+      '<span class="sn-an-stat sn-an-stat-max">Max ' +
+      fmtNum(maxT, 1) +
+      ' min</span>';
   }
 
   // =================================================================
@@ -1072,17 +1157,25 @@
 
       // Bar (only if count > 0)
       if (c > 0) {
-        svg.appendChild(
-          svgEl("rect", {
-            x: padL,
-            y: y - barH / 2,
-            width: barW,
-            height: barH,
-            fill: proctorEventColor(t.key),
-            rx: 4,
-            ry: 4,
-          }),
+        const pRect = svgEl("rect", {
+          x: padL,
+          y: y - barH / 2,
+          width: barW,
+          height: barH,
+          fill: proctorEventColor(t.key),
+          rx: 4,
+          ry: 4,
+          class: "sn-an-bar",
+        });
+        pRect.appendChild(
+          svgEl(
+            "title",
+            {},
+            t.label + ": " + c + (c === 1 ? " event" : " events") +
+              " across all submissions",
+          ),
         );
+        svg.appendChild(pRect);
       }
 
       // Count label (right)
@@ -1174,12 +1267,24 @@
       const frac = c / totalWithProctor;
       const end = start + frac * Math.PI * 2;
       const path = donutArcPath(cx, cy, rOuter, rInner, start, end);
-      svg.appendChild(
-        svgEl("path", {
-          d: path,
-          fill: b.color,
-        }),
+      const slice = svgEl("path", {
+        d: path,
+        fill: b.color,
+        class: "sn-an-donut-slice",
+      });
+      slice.appendChild(
+        svgEl(
+          "title",
+          {},
+          b.label +
+            ": " +
+            c +
+            (c === 1 ? " student" : " students") +
+            " · " +
+            fmtPct(frac * 100),
+        ),
       );
+      svg.appendChild(slice);
       start = end;
     });
 
@@ -1332,15 +1437,27 @@
       const c = counts[seg.key];
       if (c === 0) return;
       const segW = (c / total) * barAreaW;
-      svg.appendChild(
-        svgEl("rect", {
-          x: xCursor,
-          y: padT,
-          width: segW,
-          height: barH,
-          fill: seg.color,
-        }),
+      const segRect = svgEl("rect", {
+        x: xCursor,
+        y: padT,
+        width: segW,
+        height: barH,
+        fill: seg.color,
+        class: "sn-an-bar",
+      });
+      segRect.appendChild(
+        svgEl(
+          "title",
+          {},
+          seg.label +
+            ": " +
+            c +
+            (c === 1 ? " submission" : " submissions") +
+            " · " +
+            fmtPct((c / total) * 100),
+        ),
       );
+      svg.appendChild(segRect);
       // Inline count label if segment is wide enough
       if (segW > 40) {
         svg.appendChild(
