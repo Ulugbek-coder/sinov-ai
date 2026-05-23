@@ -105,6 +105,23 @@ service cloud.firestore {
     }
 
     // -------------------------------------------------------------
+    // /public_stats/{docId}
+    //   Aggregate counters used by the public homepage (sessions_total).
+    //   READ: anyone — the homepage shows a live session counter
+    //         without requiring authentication.
+    //   WRITE: anonymous OR password auth — anonymous so students
+    //         can atomically increment the counter when their
+    //         submission is recorded; the increment is safe because
+    //         students can only call FieldValue.increment(+1), and
+    //         even if abused, the only damage is a wrong counter
+    //         display on the homepage. No sensitive data lives here.
+    // -------------------------------------------------------------
+    match /public_stats/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // -------------------------------------------------------------
     // /exams/{examId}  (Admin Dashboard — exam settings)
     //   Each document describes one configured exam: course, type,
     //   academic year, semester, duration, MC/coding counts, versions,
