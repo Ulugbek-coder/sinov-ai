@@ -1,0 +1,959 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2563EB" />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="assets/favicon.svg?v=20260521g"
+    />
+    <title>Sinov AI · Instructor Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/styles.css?v=20260521x" />
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+    <script src="js/firebase-config.js?v=20260505a"></script>
+    <script src="js/firebase-client.js?v=20260521s"></script>
+  </head>
+  <body class="sn-body sn-admin-body lang-uz">
+    <!-- ========================================================== -->
+    <!-- HEADER                                                      -->
+    <!-- ========================================================== -->
+    <header class="sn-header sn-admin-header">
+      <div class="sn-header-inner">
+        <div class="sn-brand-row">
+          <a href="index.html" class="sn-brand" aria-label="Sinov AI home">
+            <span class="sn-logo" aria-hidden="true">
+              <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                <rect width="32" height="32" rx="7" fill="#2563EB" />
+                <path
+                  d="M21 9 H10 a3 3 0 0 0 0 6 h9 a2 2 0 0 1 0 4 H10 v3 h11 a5 5 0 0 0 0 -10 H13 a1 1 0 0 1 0 -2 h8 z"
+                  fill="#FFFFFF"
+                />
+                <circle cx="25.5" cy="6.5" r="3.2" fill="#F97316" />
+                <circle
+                  cx="25.5"
+                  cy="6.5"
+                  r="1.3"
+                  fill="#FFFFFF"
+                  opacity="0.5"
+                />
+              </svg>
+            </span>
+            <span class="sn-wordmark">
+              <span class="sn-wm-1">Sinov</span><span class="sn-wm-2">AI</span>
+            </span>
+          </a>
+          <span class="sn-admin-tag" aria-label="Section"
+            >Instructor Dashboard</span
+          >
+        </div>
+        <div class="sn-header-right">
+          <span id="adminEmail" class="sn-admin-email">&nbsp;</span>
+          <button
+            id="logoutBtn"
+            class="sn-header-instructor"
+            type="button"
+            aria-label="Log out"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+              <path d="M16 17l5-5-5-5" />
+              <path d="M21 12H9" />
+            </svg>
+            <span class="sn-hi-text">Log out</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ========================================================== -->
+    <!-- MAIN                                                        -->
+    <!-- ========================================================== -->
+    <main class="sn-admin-main">
+      <!-- ====== SECTION: EXAMS (visible to all instructors,
+                             write actions super-admin-only) ====== -->
+      <section class="sn-admin-section">
+        <div class="sn-admin-section-head">
+          <div>
+            <h2 class="sn-admin-section-title">Exams</h2>
+            <p class="sn-admin-section-sub">
+              Configure which exams students can take. Only <b>active</b> exams
+              appear in the student welcome page.
+            </p>
+          </div>
+          <div class="sn-admin-section-actions">
+            <button
+              id="newExamBtn"
+              class="sn-btn-primary sn-btn-compact sn-super-only"
+              type="button"
+              style="display: none"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              <span>New Exam</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Filter row -->
+        <div class="sn-admin-filters">
+          <div class="sn-admin-filter">
+            <label for="examFilterYear" class="sn-admin-filter-label"
+              >Academic Year</label
+            >
+            <div class="sn-select-wrap sn-select-wrap-sm">
+              <select id="examFilterYear" class="sn-select sn-select-sm">
+                <option value="">All years</option>
+                <!-- options injected by admin.js -->
+              </select>
+              <span class="sn-chev" aria-hidden="true">▾</span>
+            </div>
+          </div>
+          <div class="sn-admin-filter">
+            <label for="examFilterSemester" class="sn-admin-filter-label"
+              >Semester</label
+            >
+            <div class="sn-select-wrap sn-select-wrap-sm">
+              <select id="examFilterSemester" class="sn-select sn-select-sm">
+                <option value="">All semesters</option>
+                <option value="spring">Spring</option>
+                <option value="fall">Fall</option>
+              </select>
+              <span class="sn-chev" aria-hidden="true">▾</span>
+            </div>
+          </div>
+          <div class="sn-admin-filter">
+            <label for="examFilterStatus" class="sn-admin-filter-label"
+              >Status</label
+            >
+            <div class="sn-select-wrap sn-select-wrap-sm">
+              <select id="examFilterStatus" class="sn-select sn-select-sm">
+                <option value="">All</option>
+                <option value="active">Active only</option>
+                <option value="inactive">Inactive only</option>
+              </select>
+              <span class="sn-chev" aria-hidden="true">▾</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Exam card grid -->
+        <div id="examGrid" class="sn-exam-grid">
+          <div class="sn-exam-empty">Loading exams…</div>
+        </div>
+      </section>
+
+      <!-- ====== Selection-scoped lower sections ====== -->
+      <!-- These sections are hidden until an exam card is selected
+           above. Legacy schedules/submissions from before per-exam
+           scoping was added are intentionally NOT surfaced here. -->
+      <div id="noExamSelectedMsg" class="sn-no-exam-selected">
+        <b>Select an exam above</b> to manage its schedule, refresh its
+        questions, and view its submissions.
+      </div>
+
+      <div id="lowerSectionsWrap" style="display: none">
+        <!-- ====== Super-admin-only legacy sections ====== -->
+        <div id="superAdminSections" style="display: none">
+          <!-- SECTION: Refresh exam questions -->
+          <section class="sn-admin-section">
+            <div class="sn-admin-section-head">
+              <div>
+                <h2 class="sn-admin-section-title">
+                  Refresh Exam Questions
+                  <span
+                    class="sn-section-scope"
+                    id="refreshScopeLabel"
+                    style="display: none"
+                  ></span>
+                </h2>
+                <p class="sn-admin-section-sub">
+                  Refreshes and generates a new collection of test questions and
+                  coding problems in every exam version (A and B) automatically.
+                  Both versions are guaranteed to receive different coding
+                  problems. Students already taking an exam are unaffected —
+                  only new exam starts pick up the new questions.
+                </p>
+              </div>
+            </div>
+            <div class="sn-admin-toolbar">
+              <button
+                id="refreshQuestionsBtn"
+                class="sn-btn-primary sn-btn-compact"
+                type="button"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 12a9 9 0 019-9 9.75 9.75 0 016.74 2.74L21 8" />
+                  <path d="M21 3v5h-5" />
+                  <path d="M21 12a9 9 0 01-9 9 9.75 9.75 0 01-6.74-2.74L3 16" />
+                  <path d="M3 21v-5h5" />
+                </svg>
+                <span>Refresh Exam Questions</span>
+              </button>
+              <div
+                id="refreshStatus"
+                class="sn-refresh-status"
+                aria-live="polite"
+              >
+                <span class="rsp-icon">—</span>
+                <span class="rsp-text">Not refreshed yet</span>
+              </div>
+            </div>
+            <div id="refreshMsg" class="sn-admin-msg" aria-live="polite"></div>
+          </section>
+
+          <!-- SECTION: Schedule editor -->
+          <section class="sn-admin-section">
+            <div class="sn-admin-section-head">
+              <div>
+                <h2 class="sn-admin-section-title">
+                  Exam Schedule per Group
+                  <span
+                    class="sn-section-scope"
+                    id="scheduleScopeLabel"
+                    style="display: none"
+                  ></span>
+                </h2>
+                <p class="sn-admin-section-sub">
+                  Set the start and end times during which students in each
+                  group may start the exam. Times are shown in your browser's
+                  local timezone. Only groups eligible for the selected exam are
+                  shown.
+                </p>
+              </div>
+            </div>
+            <div id="scheduleTableWrap" class="admin-table-wrap">
+              <table class="admin-table schedule-table">
+                <thead>
+                  <tr>
+                    <th>Group</th>
+                    <th>Start</th>
+                    <th>End</th>
+                    <th>Status</th>
+                    <th>Scheduled by</th>
+                    <th></th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="scheduleTbody"></tbody>
+              </table>
+            </div>
+            <div id="scheduleMsg" class="sn-admin-msg" aria-live="polite"></div>
+          </section>
+        </div>
+
+        <!-- ====== SECTION: Submissions (everyone sees this) ====== -->
+        <section class="sn-admin-section">
+          <div class="sn-admin-section-head">
+            <div>
+              <h2 class="sn-admin-section-title">
+                Submissions
+                <span
+                  class="sn-section-scope"
+                  id="submissionsScopeLabel"
+                  style="display: none"
+                ></span>
+              </h2>
+              <p class="sn-admin-section-sub">
+                All student submissions recorded by Firebase. Click the PDF link
+                to download a student's report. Fallback submissions came in via
+                the Google Form (no PDF URL here — check the Google Form /
+                Drive).
+              </p>
+            </div>
+          </div>
+
+          <div class="sn-admin-toolbar">
+            <div class="sn-admin-filter">
+              <label class="sn-admin-filter-label">Filter by group</label>
+              <div class="sn-select-wrap sn-select-wrap-sm">
+                <select id="subFilter" class="sn-select sn-select-sm">
+                  <option value="">All groups</option>
+                  <option value="FM1">FM1</option>
+                  <option value="FM2">FM2</option>
+                  <option value="FM3">FM3</option>
+                  <option value="FM4">FM4</option>
+                  <option value="FM5">FM5</option>
+                  <option value="FM6">FM6</option>
+                  <option value="FM7">FM7</option>
+                  <option value="FIT1">FIT1</option>
+                  <option value="FIT2">FIT2</option>
+                  <option value="FIT3">FIT3</option>
+                  <option value="FIT4">FIT4</option>
+                  <option value="FIT5">FIT5</option>
+                  <option value="FIT6">FIT6</option>
+                  <option value="FAR1">FAR1</option>
+                  <option value="FAR2">FAR2</option>
+                  <option value="FAR3">FAR3</option>
+                </select>
+                <span class="sn-chev" aria-hidden="true">▾</span>
+              </div>
+            </div>
+            <div class="sn-admin-filter">
+              <label class="sn-admin-filter-label">Method</label>
+              <div class="sn-select-wrap sn-select-wrap-sm">
+                <select id="subMethod" class="sn-select sn-select-sm">
+                  <option value="">Any</option>
+                  <option value="firebase_manual">
+                    Regular (student submitted)
+                  </option>
+                  <option value="firebase_auto">Auto (time ran out)</option>
+                  <option value="google_form">Google Form (fallback)</option>
+                </select>
+                <span class="sn-chev" aria-hidden="true">▾</span>
+              </div>
+            </div>
+            <button
+              id="refreshBtn"
+              class="sn-btn-secondary sn-btn-compact"
+              type="button"
+            >
+              Refresh
+            </button>
+            <div id="subCountCard" class="sn-sub-count">
+              <div class="scc-num" id="subCountNum">—</div>
+              <div class="scc-lbl">Total<br />Submissions</div>
+            </div>
+          </div>
+
+          <div class="admin-table-wrap scroll">
+            <table class="admin-table sub-table">
+              <thead>
+                <tr>
+                  <th>Submitted</th>
+                  <th>Group</th>
+                  <th>ID</th>
+                  <th>Exam Taker's Full Name</th>
+                  <th>Exam Version</th>
+                  <th>Test Points</th>
+                  <th>Coding (AI)</th>
+                  <th>Final Grade</th>
+                  <th>Tabs</th>
+                  <th>Exam Violated</th>
+                  <th>Webcam Proctoring Statistics</th>
+                  <th>Time</th>
+                  <th>Submission Method</th>
+                  <th>PDF</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="subsTbody">
+                <tr>
+                  <td colspan="15" class="admin-empty">Loading…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+      <!-- /lowerSectionsWrap -->
+    </main>
+
+    <!-- ========================================================== -->
+    <!-- EXAM FORM MODAL (create / edit)                            -->
+    <!-- ========================================================== -->
+    <div
+      id="examFormModal"
+      class="sn-exam-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="examFormTitle"
+      style="display: none"
+    >
+      <div class="sn-exam-modal-backdrop"></div>
+      <div class="sn-exam-modal-dialog" role="document">
+        <div class="sn-exam-modal-head">
+          <h3 id="examFormTitle" class="sn-exam-modal-title">New Exam</h3>
+          <button
+            type="button"
+            id="examFormClose"
+            class="sn-exam-modal-close"
+            aria-label="Close"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            >
+              <path d="M6 6l12 12M6 18L18 6" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="sn-exam-modal-body">
+          <div class="sn-form-grid-2">
+            <div class="sn-form-row">
+              <label for="efUniversity" class="sn-label-sm"
+                >University <span class="sn-req">*</span></label
+              >
+              <div class="sn-select-wrap">
+                <select id="efUniversity" class="sn-select">
+                  <option value="">— Select university —</option>
+                  <option value="NPUU">
+                    National Pedagogical University of Uzbekistan (NPUU)
+                  </option>
+                </select>
+                <span class="sn-chev" aria-hidden="true">▾</span>
+              </div>
+            </div>
+            <div class="sn-form-row">
+              <label for="efCourse" class="sn-label-sm"
+                >Course / Module <span class="sn-req">*</span></label
+              >
+              <div class="sn-select-wrap">
+                <select id="efCourse" class="sn-select">
+                  <option value="">— Select course —</option>
+                  <option value="cpp1">Programming 1 with C++</option>
+                </select>
+                <span class="sn-chev" aria-hidden="true">▾</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="sn-form-row">
+            <label for="efFaculty" class="sn-label-sm"
+              >Faculty / Department <span class="sn-req">*</span></label
+            >
+            <div class="sn-select-wrap">
+              <select id="efFaculty" class="sn-select">
+                <option value="">— Select faculty —</option>
+                <option value="exact-sciences">School of Exact Sciences</option>
+                <option value="natural-sciences">
+                  Faculty of Natural Sciences
+                </option>
+                <option value="pre-school-education">
+                  Faculty of Pre-School Education
+                </option>
+              </select>
+              <span class="sn-chev" aria-hidden="true">▾</span>
+            </div>
+          </div>
+
+          <div class="sn-form-grid-2">
+            <div class="sn-form-row">
+              <label for="efYear" class="sn-label-sm"
+                >Academic Year <span class="sn-req">*</span></label
+              >
+              <div class="sn-select-wrap">
+                <select id="efYear" class="sn-select">
+                  <!-- options injected by admin.js -->
+                </select>
+                <span class="sn-chev" aria-hidden="true">▾</span>
+              </div>
+            </div>
+            <div class="sn-form-row">
+              <label class="sn-label-sm"
+                >Semester <span class="sn-req">*</span></label
+              >
+              <div
+                class="sn-toggle-group"
+                role="radiogroup"
+                aria-label="Semester"
+              >
+                <button
+                  type="button"
+                  class="sn-toggle-btn"
+                  data-sem="spring"
+                  role="radio"
+                  aria-checked="false"
+                >
+                  Spring
+                </button>
+                <button
+                  type="button"
+                  class="sn-toggle-btn"
+                  data-sem="fall"
+                  role="radio"
+                  aria-checked="false"
+                >
+                  Fall
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="sn-form-row">
+            <label for="efDegree" class="sn-label-sm"
+              >Degree <span class="sn-req">*</span></label
+            >
+            <div class="sn-select-wrap">
+              <select id="efDegree" class="sn-select">
+                <option value="">— Select degree —</option>
+                <option value="bachelor1">Bachelor — Year 1</option>
+                <option value="bachelor2">Bachelor — Year 2</option>
+                <option value="bachelor3">Bachelor — Year 3</option>
+                <option value="bachelor4">Bachelor — Year 4</option>
+                <option value="master1">Master — Year 1</option>
+                <option value="master2">Master — Year 2</option>
+              </select>
+              <span class="sn-chev" aria-hidden="true">▾</span>
+            </div>
+          </div>
+
+          <div class="sn-form-row">
+            <label class="sn-label-sm"
+              >Field of Study <span class="sn-req">*</span></label
+            >
+            <div class="sn-fos-chips" role="group" aria-label="Field of study">
+              <label class="sn-fos-chip">
+                <input type="checkbox" value="FM" />
+                <span>Mathematics (FM)</span>
+              </label>
+              <label class="sn-fos-chip">
+                <input type="checkbox" value="FIT" />
+                <span>Information Technologies (FIT)</span>
+              </label>
+              <label class="sn-fos-chip">
+                <input type="checkbox" value="FAR" />
+                <span>Artificial Intelligence (FAR)</span>
+              </label>
+            </div>
+            <div class="sn-hint">
+              Select one or more. Only students in matching groups can take this
+              exam.
+            </div>
+          </div>
+
+          <div class="sn-form-row">
+            <label for="efExamType" class="sn-label-sm"
+              >Exam Type <span class="sn-req">*</span></label
+            >
+            <div class="sn-select-wrap">
+              <select id="efExamType" class="sn-select">
+                <option value="">— Select exam type —</option>
+                <option value="midterm">Midterm Exam</option>
+                <option value="final">Final Exam</option>
+                <option value="resit">Resit Exam</option>
+                <option value="retake1">Retake Exam 1</option>
+                <option value="retake2">Retake Exam 2</option>
+              </select>
+              <span class="sn-chev" aria-hidden="true">▾</span>
+            </div>
+          </div>
+
+          <div class="sn-form-grid-3">
+            <div class="sn-form-row">
+              <label for="efMc" class="sn-label-sm"
+                >MC Questions <span class="sn-req">*</span></label
+              >
+              <input
+                type="number"
+                id="efMc"
+                class="sn-input"
+                min="0"
+                max="100"
+                step="1"
+                value="20"
+              />
+            </div>
+            <div class="sn-form-row">
+              <label for="efCoding" class="sn-label-sm"
+                >Coding Problems <span class="sn-req">*</span></label
+              >
+              <input
+                type="number"
+                id="efCoding"
+                class="sn-input"
+                min="0"
+                max="20"
+                step="1"
+                value="4"
+              />
+            </div>
+            <div class="sn-form-row">
+              <label for="efDuration" class="sn-label-sm"
+                >Duration (min) <span class="sn-req">*</span></label
+              >
+              <input
+                type="number"
+                id="efDuration"
+                class="sn-input"
+                min="5"
+                max="300"
+                step="5"
+                value="100"
+              />
+            </div>
+          </div>
+
+          <!-- ============================================================
+               MC Scoring rules (Round 2, May 2026)
+               Points per correct + penalty per wrong are configurable.
+               Unanswered is always 0 (read-only display).
+               ============================================================ -->
+          <div class="sn-form-row">
+            <div class="sn-subhead">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M9 11l3 3L22 4" />
+                <path
+                  d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"
+                />
+              </svg>
+              <span>MC scoring rules</span>
+              <span class="sn-subhead-hint"
+                >How each MC answer affects the test score</span
+              >
+            </div>
+            <div class="sn-form-grid-3">
+              <div class="sn-form-cell">
+                <label for="efMcCorrectPts" class="sn-label-xs"
+                  >Points per correct answer</label
+                >
+                <input
+                  type="number"
+                  id="efMcCorrectPts"
+                  class="sn-input"
+                  min="1"
+                  max="10"
+                  step="1"
+                  value="2"
+                />
+                <div class="sn-hint-xs">Integer 1–10</div>
+              </div>
+              <div class="sn-form-cell">
+                <label for="efMcWrongPenalty" class="sn-label-xs"
+                  >Penalty per wrong answer</label
+                >
+                <input
+                  type="number"
+                  id="efMcWrongPenalty"
+                  class="sn-input"
+                  min="0"
+                  max="10"
+                  step="1"
+                  value="0"
+                />
+                <div class="sn-hint-xs">Integer 0–10 · 0 = no penalty</div>
+              </div>
+              <div class="sn-form-cell">
+                <label class="sn-label-xs">Points per unanswered</label>
+                <input
+                  type="number"
+                  class="sn-input sn-input-readonly"
+                  value="0"
+                  readonly
+                  tabindex="-1"
+                />
+                <div class="sn-hint-xs">Always 0, not editable</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ============================================================
+               Per-problem coding max points (Round 2, May 2026)
+               One input per coding slot, dynamically generated based on
+               the Coding Problems count. Section auto-hides when count=0.
+               ============================================================ -->
+          <div class="sn-form-row" id="efCodingMaxRow" style="display: none">
+            <div class="sn-subhead">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="16 18 22 12 16 6" />
+                <polyline points="8 6 2 12 8 18" />
+              </svg>
+              <span>Max points per coding problem</span>
+              <span class="sn-subhead-hint"
+                >Set the maximum score for each coding slot</span
+              >
+            </div>
+            <div class="sn-coding-max-grid" id="efCodingMaxGrid">
+              <!-- Inputs injected by admin.js -->
+            </div>
+            <div class="sn-hint">
+              Total coding points: <b id="efCodingMaxTotal">60</b>
+            </div>
+          </div>
+
+          <div class="sn-form-row">
+            <label class="sn-label-sm"
+              >Versions <span class="sn-req">*</span></label
+            >
+            <div class="sn-chip-group">
+              <label class="sn-chip">
+                <input type="checkbox" value="A" checked />
+                <span>Version A</span>
+              </label>
+              <label class="sn-chip">
+                <input type="checkbox" value="B" checked />
+                <span>Version B</span>
+              </label>
+              <label class="sn-chip">
+                <input type="checkbox" value="C" />
+                <span>Version C</span>
+              </label>
+              <label class="sn-chip">
+                <input type="checkbox" value="D" />
+                <span>Version D</span>
+              </label>
+            </div>
+            <div class="sn-hint">
+              At least one version must be selected. Up to four supported.
+            </div>
+          </div>
+
+          <div class="sn-form-row">
+            <label class="sn-switch">
+              <input type="checkbox" id="efActive" checked />
+              <span class="sn-switch-track"
+                ><span class="sn-switch-thumb"></span
+              ></span>
+              <span class="sn-switch-label">
+                <b>Active</b>
+                <span class="sn-switch-sub"
+                  >Active exams appear in the student welcome page. Toggle off
+                  to hide an exam without deleting it.</span
+                >
+              </span>
+            </label>
+          </div>
+
+          <div id="efError" class="sn-login-error" style="display: none"></div>
+        </div>
+
+        <div class="sn-exam-modal-foot">
+          <button type="button" id="efCancel" class="sn-btn-secondary">
+            Cancel
+          </button>
+          <button
+            type="button"
+            id="efSave"
+            class="sn-btn-primary sn-btn-compact"
+          >
+            <span class="sn-btn-text">Save Exam</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== AI Grading Drawer (Feature 6) ====== -->
+    <!-- Slides in from the right when an instructor opens a submission
+         for grading. Shows the 4 coding problems side-by-side with the
+         student's code, the AI grade breakdown, and instructor override
+         fields. -->
+    <div
+      id="gradingDrawer"
+      class="sn-grading-drawer"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="sgdTitle"
+      style="display: none"
+    >
+      <div class="sn-grading-drawer-backdrop"></div>
+      <aside class="sn-grading-drawer-panel">
+        <header class="sn-grading-drawer-head">
+          <div class="sn-grading-drawer-head-main">
+            <div class="sn-grading-drawer-eyebrow">AI Code Auto-Grader</div>
+            <h2 id="sgdTitle" class="sn-grading-drawer-title">Loading…</h2>
+            <div class="sn-grading-drawer-sub" id="sgdSub">—</div>
+          </div>
+          <button
+            type="button"
+            class="sn-grading-drawer-close"
+            id="sgdClose"
+            aria-label="Close drawer"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </header>
+
+        <!-- Summary strip — totals across MC + coding -->
+        <div class="sn-grading-summary" id="sgdSummary">
+          <div class="sn-grading-summary-card">
+            <div class="sn-gsc-label">Test Points</div>
+            <div class="sn-gsc-value" id="sgdMcValue">—</div>
+            <div class="sn-gsc-max">/ <span id="sgdMcMax">40</span></div>
+          </div>
+          <div class="sn-grading-summary-card">
+            <div class="sn-gsc-label">Coding (AI)</div>
+            <div class="sn-gsc-value sn-gsc-ai" id="sgdAiCodingValue">—</div>
+            <div class="sn-gsc-max">/ <span id="sgdCodingMax">60</span></div>
+          </div>
+          <div class="sn-grading-summary-card">
+            <div class="sn-gsc-label">Coding (Instructor)</div>
+            <div
+              class="sn-gsc-value sn-gsc-instructor"
+              id="sgdInstructorCodingValue"
+            >
+              —
+            </div>
+            <div class="sn-gsc-max">/ <span id="sgdCodingMax2">60</span></div>
+          </div>
+          <div class="sn-grading-summary-card sn-grading-summary-final">
+            <div class="sn-gsc-label">Final Grade</div>
+            <div class="sn-gsc-value" id="sgdFinalValue">—</div>
+            <div class="sn-gsc-max">/ <span id="sgdTotalMax">100</span></div>
+          </div>
+        </div>
+
+        <!-- Action bar -->
+        <div class="sn-grading-actionbar">
+          <button type="button" class="sn-btn-primary" id="sgdGradeAllBtn">
+            <!-- AI-robot icon (replaces the star — May 23). Outlined
+                 head + antenna + dot eyes + side ports, matched to the
+                 stroke-1.8 / round-cap style used by other Lucide-style
+                 SVGs in the project. -->
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <!-- Antenna stem + tip ring -->
+              <path d="M12 3v3" />
+              <circle cx="12" cy="2.5" r="0.8" />
+              <!-- Head -->
+              <rect x="4" y="6" width="16" height="12" rx="2.5" />
+              <!-- Eyes (filled so they read as dots, not rings) -->
+              <circle
+                cx="9"
+                cy="12"
+                r="1.2"
+                fill="currentColor"
+                stroke="none"
+              />
+              <circle
+                cx="15"
+                cy="12"
+                r="1.2"
+                fill="currentColor"
+                stroke="none"
+              />
+              <!-- Side ports / ears -->
+              <path d="M2 11v2" />
+              <path d="M22 11v2" />
+              <!-- Mouth -->
+              <path d="M9.5 15.5h5" />
+            </svg>
+            <!-- Button label is filled in dynamically by openGradingDrawer()
+                 in admin.js (May 23). The "4" below is just a pre-JS
+                 fallback that gets overwritten with the real coding count
+                 the moment the drawer opens. -->
+            <span class="sn-btn-text" id="sgdGradeAllBtnLabel"
+              >Grade all 4 problems with AI</span
+            >
+          </button>
+          <div class="sn-grading-actionbar-sub">
+            Gemini will grade each problem against a 4-factor rubric —
+            correctness, code quality, efficiency, and edge cases. You can
+            override each score before saving.
+          </div>
+        </div>
+
+        <!-- Problems area — 4 cards injected by admin.js -->
+        <div class="sn-grading-problems" id="sgdProblemsContainer"></div>
+
+        <!-- Footer -->
+        <footer class="sn-grading-drawer-foot">
+          <button type="button" class="sn-btn-secondary" id="sgdCancelBtn">
+            Cancel
+          </button>
+          <button type="button" class="sn-btn-primary" id="sgdSaveBtn" disabled>
+            <span class="sn-btn-text">Save Final Grade</span>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </button>
+        </footer>
+      </aside>
+    </div>
+
+    <!-- Legacy reusable modal (kept for admin.js openModal compatibility) -->
+    <div
+      id="appModal"
+      class="app-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="appModalTitle"
+      style="display: none"
+    >
+      <div class="app-modal-backdrop"></div>
+      <div class="app-modal-dialog" role="document">
+        <div class="app-modal-head">
+          <div class="app-modal-icon" id="appModalIcon">?</div>
+          <h3 id="appModalTitle">Confirm</h3>
+        </div>
+        <div class="app-modal-body" id="appModalBody">Message</div>
+        <div class="app-modal-actions" id="appModalActions"></div>
+      </div>
+    </div>
+
+    <script src="js/questions/coding-bank.js?v=20260505a"></script>
+    <script src="js/proctoring-admin.js?v=20260521s"></script>
+    <script src="js/header-scroll.js?v=20260521u"></script>
+    <script src="js/admin.js?v=20260521w"></script>
+  </body>
+</html>
