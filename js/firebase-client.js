@@ -323,6 +323,29 @@ async function uploadSubmission(submissionData, pdfBlob, onProgress) {
         ...doc,
         firestoreAttempts: attempt,
       });
+      // Increment the public-facing session counter shown on the
+      // homepage. Best-effort: a failure here must NEVER fail the
+      // submission, so we await with a swallow. set({merge:true}) +
+      // FieldValue.increment lets this work on first ever submission
+      // (doc gets created) and every subsequent one (doc gets updated).
+      try {
+        await window.fbDb
+          .collection("public_stats")
+          .doc("sessions_total")
+          .set(
+            {
+              count: firebase.firestore.FieldValue.increment(1),
+              lastUpdated: firebase.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
+      } catch (counterErr) {
+        // Don't surface to the student — counter is cosmetic.
+        console.warn(
+          "[firebase-client] session counter increment failed:",
+          counterErr && counterErr.code,
+        );
+      }
       report("success", attempt, { url: downloadURL });
       return {
         method: firebaseMethod,
