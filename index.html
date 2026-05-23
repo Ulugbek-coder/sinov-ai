@@ -27,7 +27,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
     <script src="js/firebase-config.js?v=20260505a"></script>
-    <script src="js/firebase-client.js?v=20260521s"></script>
+    <script src="js/firebase-client.js?v=20260523e"></script>
   </head>
   <body class="sn-body lang-uz">
     <!-- ========================================================== -->
@@ -787,10 +787,14 @@
 
     <!-- ==============================================================
          Live session counter — populates the "N sessions completed so far"
-         pill in the header from Firestore. Uses the server-side count()
-         aggregation so it transfers no document payloads, only the integer.
-         Fails silently to "0" if Firebase is unreachable (e.g. master-
-         override demo mode). Runs once on page load.
+         pill in the header. Reads from /public_stats/sessions_total, a
+         single public-readable counter doc that firebase-client.js
+         increments atomically on every successful submission. This
+         architecture means the homepage doesn't need auth and the public
+         can't enumerate actual submission data.
+         Falls back to "0" silently if Firebase is unreachable or the
+         counter doc doesn't exist yet (no submissions yet on this project).
+         Runs once on page load.
          ============================================================== -->
     <script>
       (function () {
@@ -810,18 +814,22 @@
             typeof window.fbDb.collection === "function"
           ) {
             try {
-              // count() aggregation — Firestore returns just the number,
-              // not the docs. Cheap and scalable.
               window.fbDb
-                .collection("submissions")
-                .count()
+                .collection("public_stats")
+                .doc("sessions_total")
                 .get()
                 .then(function (snap) {
-                  paint(snap.data().count);
+                  if (snap.exists) {
+                    var data = snap.data() || {};
+                    paint(typeof data.count === "number" ? data.count : 0);
+                  } else {
+                    // No submissions recorded yet on this Firebase project.
+                    paint(0);
+                  }
                 })
                 .catch(function (err) {
                   console.warn(
-                    "[session-counter] count() failed, falling back to 0:",
+                    "[session-counter] read failed, falling back to 0:",
                     err && err.code,
                   );
                   paint(0);
