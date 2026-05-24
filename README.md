@@ -15,8 +15,8 @@ Sinov AI is a production-ready exam platform with four AI-powered features layer
 
 - **🎥 Webcam Proctoring** — MediaPipe runs locally for fast face/hand detection; suspicious frames escalate to Gemini Vision for context-aware classification (looking off-screen, holding a phone, secondary person in frame). False-positive rate under 2% on internal testing.
 - **🧠 AI Code Grading** — Gemini Flash evaluates student C++ submissions against a 4-axis rubric (correctness, code quality, efficiency, style) and produces structured per-problem feedback. Instructors can override scores in one click.
-- **📋 Personalized Study Feedback** — After submission, every student receives a trilingual (English / Uzbek / Russian) study recommendation tailored to their wrong-answer pattern. Powered by Gemini Flash.
-- **👓 Eyewear Verification** — During the welcome flow, a webcam-captured photo is checked for glasses consistency with the student's profile, deterring "smart-glasses" cheating attempts.
+- **📋 Personalized Study Feedback by Gemini** — After submission, every student receives a trilingual (English / Uzbek / Russian) study recommendation tailored to their wrong-answer pattern. Powered by Gemini Flash.
+- **👓 Eyewear/Eyeglasess Verification by Gemini** — During the welcome flow, a webcam-captured photo is checked for glasses consistency with the student's profile, deterring "smart-glasses" cheating attempts.
 
 **Foundation features** (the production C++ exam system)
 
