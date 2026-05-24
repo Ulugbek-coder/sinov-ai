@@ -100,6 +100,27 @@ No framework, no build step. The entire frontend is hand-written HTML / CSS / va
 
 Per student per exam (typical 90-minute session with proctoring + grading + feedback): **~$0.05**. The platform runs on Gemini's `2.5-flash-lite` for high-volume tasks (vision, proctoring) and `2.5-flash` for quality-sensitive tasks (grading, feedback). Free-tier quotas are sufficient for development; paid tier is required at exam scale.
 
+## Roadmap - Future Plans for Sinov AI.
+
+From MVP to platform — what's next for Sinov AI, organized by time horizon:
+
+**Next semester**
+
+- Student accounts with all taken exams history.
+- AI-generated mock exams for pre-exam practice.
+- After a failed exam, Gemini composes a personalized study plan to students.
+
+**Mid-term**
+
+- Real-time GPA grades across all courses.
+- Instructor-uploaded exam guides surfaced in each student's dashboard.
+- Adaptive question difficulty — AI calibrates hardness based on students' prior exam performances.
+
+**Long-term**
+
+- Multi-subject expansion — Discrete Math, Calculus 2, Analytic Geometry, Mathematical Analysis 1 & 2, General & Academic English.
+- Deep LMS integration with Moodle and Canvas, the systems Uzbek and regional universities already use.
+
 ## Team
 
 | Member | Role |
