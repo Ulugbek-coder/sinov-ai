@@ -875,4 +875,282 @@ int main() {
     cout << "Count = " << countTarget(arr, 6, 2) << endl;
     return 0;
 }`,
+  // ---------- ADDED JUNE 2026 (15 new solutions) ----------
+  "Day Name with Switch": `#include <iostream>
+using namespace std;
+
+int main() {
+    int d;
+    cout << "Enter day number (1-7): ";
+    cin >> d;
+
+    cout << "Day = ";
+    switch (d) {
+        case 1: cout << "Monday"; break;
+        case 2: cout << "Tuesday"; break;
+        case 3: cout << "Wednesday"; break;
+        case 4: cout << "Thursday"; break;
+        case 5: cout << "Friday"; break;
+        case 6: cout << "Saturday"; break;
+        case 7: cout << "Sunday"; break;
+        default: cout << "Invalid"; break;
+    }
+    cout << endl;
+    return 0;
+}`,
+  "Swap Two Values Using Pointers": `#include <iostream>
+using namespace std;
+
+void swapValues(int* a, int* b) {
+    int temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
+int main() {
+    int x, y;
+    cout << "Enter two integers: ";
+    cin >> x >> y;
+
+    cout << "Before: " << x << " " << y << endl;
+    swapValues(&x, &y);
+    cout << "After: " << x << " " << y << endl;
+    return 0;
+}`,
+  "Countdown Using do-while": `#include <iostream>
+using namespace std;
+
+int main() {
+    int n;
+    cout << "Enter start: ";
+    cin >> n;
+
+    int i = n;
+    do {
+        cout << i << " ";
+        i--;
+    } while (i >= 1);
+    cout << "Liftoff!" << endl;
+    return 0;
+}`,
+  "Sum of Squares from 1 to N": `#include <iostream>
+using namespace std;
+
+int main() {
+    int n;
+    cout << "Enter N: ";
+    cin >> n;
+
+    int sum = 0;
+    for (int i = 1; i <= n; i++) {
+        sum += i * i;
+    }
+    cout << "Sum of squares = " << sum << endl;
+    return 0;
+}`,
+  "Letter Grade Using Switch": `#include <iostream>
+using namespace std;
+
+int main() {
+    int score;
+    cout << "Enter score (0-100): ";
+    cin >> score;
+
+    char grade;
+    switch (score / 10) {
+        case 10:
+        case 9:  grade = 'A'; break;
+        case 8:  grade = 'B'; break;
+        case 7:  grade = 'C'; break;
+        case 6:  grade = 'D'; break;
+        default: grade = 'F'; break;
+    }
+    cout << "Grade = " << grade << endl;
+    return 0;
+}`,
+  "Overloaded Area Functions": `#include <iostream>
+using namespace std;
+
+int area(int side) {
+    return side * side;
+}
+
+int area(int width, int height) {
+    return width * height;
+}
+
+int main() {
+    cout << "Square area = " << area(5) << endl;
+    cout << "Rectangle area = " << area(4, 6) << endl;
+    return 0;
+}`,
+  "Function Overriding with Shapes": `#include <iostream>
+using namespace std;
+
+class Shape {
+public:
+    virtual void draw() {
+        cout << "Some generic shape" << endl;
+    }
+};
+
+class Circle : public Shape {
+public:
+    void draw() override {
+        cout << "Drawing a circle" << endl;
+    }
+};
+
+int main() {
+    Shape s;
+    Circle c;
+    Shape* ptr = &c;
+
+    s.draw();      // base version
+    ptr->draw();   // overridden version (virtual dispatch)
+    return 0;
+}`,
+  "Modify Variable Through a Pointer": `#include <iostream>
+using namespace std;
+
+void addTen(int* p) {
+    *p = *p + 10;
+}
+
+int main() {
+    int x;
+    cout << "Enter a number: ";
+    cin >> x;
+
+    cout << "Before = " << x << endl;
+    addTen(&x);
+    cout << "After = " << x << endl;
+    return 0;
+}`,
+  "Print All Divisors of N": `#include <iostream>
+using namespace std;
+
+int main() {
+    int n;
+    cout << "Enter N: ";
+    cin >> n;
+
+    cout << "Divisors:";
+    for (int i = 1; i <= n; i++) {
+        if (n % i == 0) {
+            cout << " " << i;
+        }
+    }
+    cout << endl;
+    return 0;
+}`,
+  "Matrix Total and Diagonal Sum": `#include <iostream>
+using namespace std;
+int main() {
+    int m[3][3] = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
+    int total = 0;
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++)
+            total += m[i][j];
+    int diag = 0;
+    for (int i = 0; i < 3; i++) diag += m[i][i];
+    cout << "Total = " << total << endl;
+    cout << "Diagonal = " << diag << endl;
+    return 0;
+}`,
+  "Largest Element in a 2D Matrix": `#include <iostream>
+using namespace std;
+int main() {
+    int m[3][3] = {{3, 9, 1}, {4, 2, 8}, {7, 5, 6}};
+    int largest = m[0][0], r = 0, c = 0;
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++)
+            if (m[i][j] > largest) { largest = m[i][j]; r = i; c = j; }
+    cout << "Largest = " << largest << endl;
+    cout << "Position: row " << r << " col " << c << endl;
+    return 0;
+}`,
+  "Count Spaces and Length of a Sentence": `#include <iostream>
+#include <string>
+using namespace std;
+int main() {
+    string s;
+    cout << "Enter a sentence: ";
+    getline(cin, s);
+    int spaces = 0;
+    for (int i = 0; i < s.length(); i++)
+        if (s[i] == ' ') spaces++;
+    cout << "Spaces = " << spaces << endl;
+    cout << "Length = " << s.length() << endl;
+    return 0;
+}`,
+  "Search and Count in an Array": `#include <iostream>
+using namespace std;
+int main() {
+    int arr[6] = {4, 8, 15, 7, 23, 42};
+    int t;
+    cout << "Enter target: ";
+    cin >> t;
+    int index = -1;
+    for (int i = 0; i < 6; i++)
+        if (arr[i] == t) { index = i; break; }
+    int greater = 0;
+    for (int i = 0; i < 6; i++)
+        if (arr[i] > t) greater++;
+    cout << "Index = " << index << endl;
+    cout << "Greater = " << greater << endl;
+    return 0;
+}`,
+  "Transpose a Square Matrix": `#include <iostream>
+using namespace std;
+
+int main() {
+    int m[3][3] = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
+    int t[3][3];
+
+    // (a) Build the transpose: t[j][i] = m[i][j]
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            t[j][i] = m[i][j];
+        }
+    }
+
+    // (b) Print the transpose row by row
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            cout << t[i][j];
+            if (j < 2) cout << " ";
+        }
+        cout << endl;
+    }
+    return 0;
+}`,
+  "Most Frequent Character in a String": `#include <iostream>
+#include <string>
+using namespace std;
+
+int main() {
+    string s;
+    cout << "Enter a string: ";
+    getline(cin, s);
+
+    int freq[26] = {0};
+    for (int i = 0; i < s.length(); i++) {
+        if (s[i] >= 'a' && s[i] <= 'z') {
+            freq[s[i] - 'a']++;
+        }
+    }
+
+    int bestIdx = 0;
+    for (int i = 1; i < 26; i++) {
+        if (freq[i] > freq[bestIdx]) {
+            bestIdx = i;
+        }
+    }
+
+    cout << "Most frequent: " << (char)('a' + bestIdx) << endl;
+    cout << "Count: " << freq[bestIdx] << endl;
+    return 0;
+}`,
+
 };
