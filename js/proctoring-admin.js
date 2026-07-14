@@ -50,6 +50,24 @@
   }
 
   function renderRiskCellHtml(submission) {
+    // Webcam feature was turned OFF by the admin for this exam — no
+    // proctoring data exists by design. Render a distinct clickable
+    // badge; the evidence modal explains the setting (see
+    // openProctorModal's webcamDisabled branch).
+    if (submission && submission.webcamDisabled === true) {
+      return (
+        '<button class="proctor-badge-btn" ' +
+        'data-docid="' +
+        escapeAttr(submission.id || "") +
+        '" ' +
+        'title="Webcam feature was turned off by the admin for this exam" ' +
+        'style="background:#E0E7FF;color:#3730A3;border:none;cursor:pointer;' +
+        "padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;" +
+        'letter-spacing:.02em">' +
+        "📷 WEBCAM OFF" +
+        "</button>"
+      );
+    }
     if (
       !submission ||
       typeof submission.proctorRiskScore !== "number" ||
@@ -225,6 +243,14 @@
       "background:rgba(0,0,0,.85);align-items:center;justify-content:center;cursor:zoom-out}" +
       "#proctor-admin-zoom.show{display:flex}" +
       "#proctor-admin-zoom img{max-width:92vw;max-height:92vh;border-radius:6px}" +
+      // ---- Webcam feature turned off by the admin (per-exam setting) ----
+      "#proctor-admin-box .pa-webcam-off{display:flex;align-items:center;gap:16px;" +
+      "background:linear-gradient(135deg,#EEF2FF 0%,#E0E7FF 100%);" +
+      "border:1.5px solid #A5B4FC;border-radius:12px;padding:22px 24px;margin-bottom:6px}" +
+      "#proctor-admin-box .pa-webcam-off-emoji{font-size:36px;line-height:1}" +
+      "#proctor-admin-box .pa-webcam-off-title{font-size:16px;font-weight:700;" +
+      "color:#3730A3;margin-bottom:3px}" +
+      "#proctor-admin-box .pa-webcam-off-sub{font-size:12.5px;color:#4B5563;line-height:1.45}" +
       "";
     const styleEl = document.createElement("style");
     styleEl.id = "proctor-admin-modal-styles";
@@ -245,9 +271,9 @@
       "</div>" +
       '<div class="pa-meta" id="pa-meta"></div>' +
       '<div class="pa-sumrow" id="pa-sumrow"></div>' +
-      '<div class="pa-section-title">Flagged Anomaly Detected Events</div>' +
+      '<div class="pa-section-title" id="pa-sec-anom-title">Flagged Anomaly Detected Events</div>' +
       '<div class="pa-events" id="pa-events-anom"></div>' +
-      '<div class="pa-section-title">Scheduled Evidence Frames (every 5 minutes)</div>' +
+      '<div class="pa-section-title" id="pa-sec-sched-title">Scheduled Evidence Frames (every 5 minutes)</div>' +
       '<div class="pa-events" id="pa-events-sched"></div>' +
       "</div>";
     document.body.appendChild(overlay);
@@ -286,6 +312,67 @@
     const overlay = document.getElementById("proctor-admin-overlay");
     const sessionId = submission.proctorSessionId;
     const score = submission.proctorRiskScore;
+
+    // ----------------------------------------------------------------
+    // Webcam feature turned OFF by the admin for this exam.
+    // No proctoring session exists by design, so instead of scores,
+    // tiles and evidence frames we show the student info card plus a
+    // single informative panel — then bail out before any Firestore /
+    // Storage fetches. The static section titles ("Flagged Anomaly
+    // Detected Events" / "Scheduled Evidence Frames") are hidden for
+    // this state and restored for normal proctored sessions since the
+    // modal DOM is reused across opens.
+    // ----------------------------------------------------------------
+    const webcamOff = submission.webcamDisabled === true;
+    const anomTitleEl = document.getElementById("pa-sec-anom-title");
+    const schedTitleEl = document.getElementById("pa-sec-sched-title");
+    if (anomTitleEl) anomTitleEl.style.display = webcamOff ? "none" : "";
+    if (schedTitleEl) schedTitleEl.style.display = webcamOff ? "none" : "";
+
+    if (webcamOff) {
+      const wName =
+        [submission.firstName, submission.lastName].filter(Boolean).join(" ") ||
+        "Unknown";
+      document.getElementById("pa-meta").innerHTML =
+        '<div class="pa-info-card">' +
+        '<div class="pa-info-row">' +
+        '<span class="pa-info-label">Student Full Name</span>' +
+        '<span class="pa-info-value">' +
+        escapeHtml(wName) +
+        "</span>" +
+        "</div>" +
+        '<div class="pa-info-row">' +
+        '<span class="pa-info-label">Student Group</span>' +
+        '<span class="pa-info-value">' +
+        escapeHtml(submission.group || "—") +
+        "</span>" +
+        "</div>" +
+        '<div class="pa-info-row">' +
+        '<span class="pa-info-label">Student ID</span>' +
+        '<span class="pa-info-value">' +
+        escapeHtml(submission.studentId || "—") +
+        "</span>" +
+        "</div>" +
+        '<div class="pa-info-row">' +
+        '<span class="pa-info-label">Exam Version</span>' +
+        '<span class="pa-info-value">' +
+        escapeHtml(submission.version || "—") +
+        "</span>" +
+        "</div>" +
+        "</div>";
+      document.getElementById("pa-sumrow").innerHTML =
+        '<div class="pa-webcam-off">' +
+        '<div class="pa-webcam-off-emoji">📷</div>' +
+        "<div>" +
+        '<div class="pa-webcam-off-title">The webcam feature was turned off by the admin for this exam.</div>' +
+        '<div class="pa-webcam-off-sub">No verification photo was captured and no webcam proctoring was performed for this submission, so there is no proctoring evidence to review.</div>' +
+        "</div>" +
+        "</div>";
+      document.getElementById("pa-events-anom").innerHTML = "";
+      document.getElementById("pa-events-sched").innerHTML = "";
+      overlay.classList.add("show");
+      return;
+    }
 
     // ----------------------------------------------------------------
     // Student information card (Issue #10) — line-by-line, colored,

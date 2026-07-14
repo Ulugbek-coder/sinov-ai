@@ -525,6 +525,29 @@
       if (isSuper) newBtn.addEventListener("click", openCreateExamModal);
     }
 
+    // Webcam feature master toggle (per-exam on/off). Clicking the
+    // switch opens the webcam modal listing every created exam so the
+    // instructor picks exactly which exams have the webcam feature
+    // turned OFF. Available to every instructor.
+    const webcamBtn = $("webcamToggleBtn");
+    if (webcamBtn) {
+      webcamBtn.addEventListener("click", openWebcamModal);
+    }
+    const webcamClose = $("webcamModalClose");
+    if (webcamClose) webcamClose.addEventListener("click", closeWebcamModal);
+    const webcamCancel = $("webcamCancel");
+    if (webcamCancel) webcamCancel.addEventListener("click", closeWebcamModal);
+    const webcamSave = $("webcamSave");
+    if (webcamSave) webcamSave.addEventListener("click", onSaveWebcamSettings);
+    const webcamModal = $("webcamModal");
+    if (webcamModal) {
+      webcamModal.addEventListener("click", function (e) {
+        if (e.target.classList.contains("sn-exam-modal-backdrop")) {
+          closeWebcamModal();
+        }
+      });
+    }
+
     // Wire modal close + cancel + save handlers (only matters for super)
     if (isSuper) {
       $("examFormClose").addEventListener("click", closeExamModal);
@@ -612,6 +635,7 @@
     ])
       .then(function () {
         renderExamGrid();
+        updateWebcamToggleUI();
         applySelectionToLowerSections();
       })
       .catch(function (err) {
@@ -669,10 +693,18 @@
     card.dataset.examId = d._id;
 
     const statusHtml =
+      '<span class="sn-exam-badges">' +
       '<span class="sn-exam-status ' +
       _statusClass(status) +
       '">' +
       _statusLabel(status) +
+      "</span>" +
+      // Webcam feature turned off by the admin for this exam — small
+      // informative chip next to the status badge.
+      (d.webcamEnabled === false
+        ? '<span class="sn-exam-status sn-exam-webcam-off" ' +
+          'title="Webcam feature turned off by the admin: no verification photo, no live proctoring">📷 Webcam Off</span>'
+        : "") +
       "</span>";
 
     const updatedAt =
@@ -1273,6 +1305,21 @@
 
     const docId = _examIdFor(data);
 
+    // Preserve the per-exam webcam feature setting across edits. That
+    // flag is managed by the "Webcam Feature" modal, not by this form —
+    // carry the existing value over so an edit (including a tuple
+    // change, which deletes + recreates the doc) doesn't silently turn
+    // the webcam feature back on. New exams default to webcam ON
+    // (field simply absent).
+    if (_editingExamId) {
+      const prevDoc = _examDocs.find(function (e) {
+        return e._id === _editingExamId;
+      });
+      if (prevDoc && prevDoc.webcamEnabled === false) {
+        data.webcamEnabled = false;
+      }
+    }
+
     // For NEW exams: if a doc with this ID already exists, block with friendly error.
     // For EDITS: if the user changed the tuple such that the new ID conflicts with
     // a DIFFERENT existing exam, also block.
@@ -1433,6 +1480,187 @@
           icon: "!",
           buttons: [{ label: "OK", value: true, style: "primary" }],
         });
+      });
+  }
+
+  // =============================================================
+  // WEBCAM FEATURE (per-exam on/off)
+  // -------------------------------------------------------------
+  // The "Webcam Feature" switch in the Exams section header opens a
+  // modal listing every created exam. The instructor checks the exams
+  // for which the webcam feature must be turned OFF completely:
+  //   - no verification photo at exam start,
+  //   - no live AI webcam proctoring during the exam,
+  //   - avatar placeholder on the final scorecard + PDF report,
+  //   - "webcam turned off by the admin" in the proctoring evidence.
+  // The setting is stored per exam doc as `webcamEnabled: false`.
+  // Absence of the field (legacy docs) means the feature is ON.
+  // The header switch reads OFF whenever at least one exam has the
+  // webcam feature disabled.
+  // =============================================================
+  function _examWebcamOff(d) {
+    return d && d.webcamEnabled === false;
+  }
+
+  function updateWebcamToggleUI() {
+    const btn = $("webcamToggleBtn");
+    const stateLbl = $("webcamToggleState");
+    if (!btn) return;
+    const anyOff = _examDocs.some(_examWebcamOff);
+    btn.classList.toggle("is-off", anyOff);
+    btn.setAttribute("aria-checked", anyOff ? "false" : "true");
+    if (stateLbl) {
+      const offCount = _examDocs.filter(_examWebcamOff).length;
+      stateLbl.textContent = anyOff
+        ? "Off (" + offCount + " exam" + (offCount === 1 ? "" : "s") + ")"
+        : "On";
+      stateLbl.classList.toggle("is-on", !anyOff);
+      stateLbl.classList.toggle("is-off", anyOff);
+    }
+  }
+
+  function _showWebcamModalError(msg) {
+    const el = $("webcamModalError");
+    if (!el) return;
+    el.textContent = msg;
+    el.style.display = "block";
+  }
+
+  function _webcamExamLabel(d) {
+    return (
+      _examTypeLabel(d.examType) +
+      " · " +
+      _capitalize(d.semester || "") +
+      " " +
+      (d.academicYear || "") +
+      " · " +
+      _courseLabel(d.course)
+    );
+  }
+
+  function openWebcamModal() {
+    const modal = $("webcamModal");
+    const list = $("webcamExamList");
+    const err = $("webcamModalError");
+    const saveBtn = $("webcamSave");
+    if (!modal || !list) return;
+    if (err) err.style.display = "none";
+
+    if (!_examDocs.length) {
+      list.innerHTML =
+        '<div class="sn-exam-empty">No exams have been created yet. ' +
+        "Create an exam first, then choose which exams have the webcam " +
+        "feature turned off.</div>";
+      if (saveBtn) saveBtn.disabled = true;
+    } else {
+      if (saveBtn) saveBtn.disabled = false;
+      list.innerHTML = "";
+      _examDocs.forEach(function (d) {
+        const off = _examWebcamOff(d);
+        const item = document.createElement("label");
+        item.className = "sn-webcam-exam-item" + (off ? " is-off" : "");
+        item.innerHTML =
+          '<input type="checkbox" class="sn-webcam-exam-check" data-examid="' +
+          _escapeHtml(d._id) +
+          '"' +
+          (off ? " checked" : "") +
+          " />" +
+          '<span class="sn-webcam-exam-main">' +
+          '<span class="sn-webcam-exam-title">' +
+          _escapeHtml(_webcamExamLabel(d)) +
+          "</span>" +
+          '<span class="sn-webcam-exam-sub">' +
+          _escapeHtml(d.university || "") +
+          (d.faculty ? " · " + _escapeHtml(_facultyLabel(d.faculty)) : "") +
+          (d.active ? " · Active" : " · Inactive") +
+          "</span>" +
+          "</span>" +
+          '<span class="sn-webcam-exam-state">' +
+          (off ? "📷 Webcam OFF" : "📷 Webcam ON") +
+          "</span>";
+        // Live visual feedback when the checkbox changes.
+        const cb = item.querySelector("input");
+        cb.addEventListener("change", function () {
+          item.classList.toggle("is-off", cb.checked);
+          item.querySelector(".sn-webcam-exam-state").textContent = cb.checked
+            ? "📷 Webcam OFF"
+            : "📷 Webcam ON";
+        });
+        list.appendChild(item);
+      });
+    }
+    modal.style.display = "flex";
+  }
+
+  function closeWebcamModal() {
+    const modal = $("webcamModal");
+    if (modal) modal.style.display = "none";
+  }
+
+  function onSaveWebcamSettings() {
+    const list = $("webcamExamList");
+    const saveBtn = $("webcamSave");
+    const err = $("webcamModalError");
+    if (!list) return;
+    if (err) err.style.display = "none";
+    if (!window.fbDb) {
+      _showWebcamModalError("Firestore is not available.");
+      return;
+    }
+
+    // Desired per-exam state read from the checkboxes:
+    // checked = webcam feature OFF for that exam.
+    const desiredOff = {};
+    list
+      .querySelectorAll(".sn-webcam-exam-check")
+      .forEach(function (cb) {
+        desiredOff[cb.dataset.examid] = cb.checked;
+      });
+
+    // Only write exams whose state actually changed.
+    const updatedBy =
+      (window.fbAuth.currentUser && window.fbAuth.currentUser.email) || "";
+    const batch = window.fbDb.batch();
+    let changes = 0;
+    _examDocs.forEach(function (d) {
+      if (!(d._id in desiredOff)) return;
+      const currentOff = _examWebcamOff(d);
+      const nextOff = desiredOff[d._id];
+      if (currentOff === nextOff) return;
+      changes++;
+      batch.set(
+        window.fbDb.collection("exams").doc(d._id),
+        {
+          webcamEnabled: !nextOff,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedBy: updatedBy,
+        },
+        { merge: true },
+      );
+    });
+
+    if (!changes) {
+      closeWebcamModal();
+      return;
+    }
+
+    const saveBtnText = saveBtn ? saveBtn.querySelector(".sn-btn-text") : null;
+    if (saveBtn) saveBtn.disabled = true;
+    if (saveBtnText) saveBtnText.textContent = "Saving…";
+
+    batch
+      .commit()
+      .then(function () {
+        closeWebcamModal();
+        loadExams();
+      })
+      .catch(function (e) {
+        console.error("[webcam] save failed", e);
+        _showWebcamModalError("Save failed: " + (e.message || String(e)));
+      })
+      .finally(function () {
+        if (saveBtn) saveBtn.disabled = false;
+        if (saveBtnText) saveBtnText.textContent = "Save Webcam Settings";
       });
   }
 

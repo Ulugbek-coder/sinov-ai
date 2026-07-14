@@ -124,6 +124,25 @@ let starterCodeStripped = [false, false];
 let masterOverrideActive = false;
 let currentSchedule = null; // { startAt, endAt, status }
 
+// ---------- Per-exam webcam feature flag ----------
+// The instructor can turn the webcam feature OFF for a specific exam
+// from the admin dashboard (Exams section → "Webcam Feature" toggle →
+// per-exam selection modal). The flag lives on the exam config doc as
+// `webcamEnabled: false`. When OFF for the active exam:
+//   - no proctoring consent gate on the welcome page,
+//   - no verification photo capture at exam start,
+//   - no live webcam proctoring during the exam,
+//   - the final scorecard + PDF show an avatar placeholder instead of
+//     the verification photo,
+//   - the submission is tagged `webcamDisabled: true` so the admin
+//     dashboard shows "webcam turned off by the admin" in place of the
+//     proctoring evidence.
+// Absence of the field (legacy exam docs) means the webcam feature is ON.
+function webcamFeatureDisabled() {
+  const cfg = window._sinovActiveExamConfig;
+  return !!(cfg && cfg.webcamEnabled === false);
+}
+
 // ---------------- Helpers ----------------
 function $(id) {
   return document.getElementById(id);
@@ -790,7 +809,9 @@ async function startExam() {
   // exam page by Proctoring.start() once the timer begins.
   // The master-override path (instructor preview) skips this gate so
   // an instructor can preview the exam without a webcam.
-  if (!masterOverrideActive && window.Proctoring) {
+  // Also skipped entirely when the instructor turned the webcam feature
+  // OFF for this exam (exam config `webcamEnabled: false`).
+  if (!masterOverrideActive && !webcamFeatureDisabled() && window.Proctoring) {
     if (startBtn) {
       startBtn.disabled = false;
       startBtn.textContent = originalText;
@@ -819,8 +840,14 @@ async function startExam() {
   // a retry option inside the modal; if they give up there, they're
   // back at the welcome page (Start button re-enabled).
   // The master-override path skips this so instructors can preview.
+  // Also skipped entirely when the instructor turned the webcam feature
+  // OFF for this exam (exam config `webcamEnabled: false`).
   let verificationPhoto = null;
-  if (!masterOverrideActive && window.VerificationPhoto) {
+  if (
+    !masterOverrideActive &&
+    !webcamFeatureDisabled() &&
+    window.VerificationPhoto
+  ) {
     if (startBtn) {
       startBtn.disabled = false;
       startBtn.textContent = originalText;
@@ -924,8 +951,15 @@ function initExamPage() {
   // -------------------------------------------------------------
   // Aligned to exam-timer start (window opens once the 100-minute
   // countdown begins). Master-override sessions (instructor preview)
-  // skip proctoring.
-  if (!masterOverrideActive && window.Proctoring && window._proctorSessionId) {
+  // skip proctoring. Also skipped entirely when the instructor turned
+  // the webcam feature OFF for this exam (`webcamEnabled: false` on the
+  // exam config — restored above into window._sinovActiveExamConfig).
+  if (
+    !masterOverrideActive &&
+    !webcamFeatureDisabled() &&
+    window.Proctoring &&
+    window._proctorSessionId
+  ) {
     // Fire and forget — start() handles its own errors. If the webcam
     // is unavailable here (e.g., browser revoked permission between
     // pages), Proctoring.start() will log a 'camera_lost' event so the
@@ -2177,7 +2211,7 @@ async function performSubmit(trigger) {
   // is read synchronously; events are already in memory.
   // -------------------------------------------------------------
   let proctorSummary = null;
-  if (window.Proctoring) {
+  if (window.Proctoring && !webcamFeatureDisabled()) {
     try {
       proctorSummary = window.Proctoring.getRiskSummary();
       window.Proctoring.stop();
@@ -2350,8 +2384,14 @@ async function performSubmit(trigger) {
     // Snapshot of the exam config so the PDF header can render
     // course / faculty / semester / year without re-querying Firestore.
     examConfig: window._sinovActiveExamConfig || null,
+    // Webcam feature switched OFF by the admin for this exam. Consumed
+    // by the PDF generator (avatar placeholder instead of the photo)
+    // and stored on the submission doc so the admin dashboard shows
+    // "webcam turned off by the admin" instead of proctoring evidence.
+    webcamDisabled: webcamFeatureDisabled(),
     // Proctoring summary (Feature 1) — null if proctoring wasn't run
-    // (e.g., master-override preview, or stop() failed).
+    // (e.g., master-override preview, webcam feature turned off by the
+    // admin for this exam, or stop() failed).
     proctorSummary: proctorSummary,
   };
 
@@ -2768,12 +2808,28 @@ function escapeHtmlBasic(s) {
 function renderScorecardHtml(timeStr) {
   const photoUrl =
     (window._verificationPhoto && window._verificationPhoto.dataUrl) || null;
-  const photoBlock = photoUrl
-    ? `<div class="sinfo-photo-wrap">
+  // When the instructor turned the webcam feature OFF for this exam,
+  // no verification photo exists by design — show a generic avatar
+  // image as the placeholder instead of the "No verification photo"
+  // empty state (which would read like an error).
+  const webcamOff = webcamFeatureDisabled();
+  const avatarBlock = `<div class="sinfo-photo-wrap sinfo-photo-avatar">
+         <div class="sinfo-avatar" aria-label="Avatar placeholder">
+           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+             <circle cx="12" cy="8" r="4"/>
+             <path d="M4 20c0-3.9 3.6-6.5 8-6.5s8 2.6 8 6.5v1H4v-1z"/>
+           </svg>
+         </div>
+         <div class="sinfo-photo-label">Avatar</div>
+       </div>`;
+  const photoBlock = webcamOff
+    ? avatarBlock
+    : photoUrl
+      ? `<div class="sinfo-photo-wrap">
          <img class="sinfo-photo" src="${photoUrl}" alt="Verification photo" />
          <div class="sinfo-photo-label">Verification photo</div>
        </div>`
-    : `<div class="sinfo-photo-wrap sinfo-photo-empty">
+      : `<div class="sinfo-photo-wrap sinfo-photo-empty">
          <div class="sinfo-photo-placeholder">
            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
              <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>

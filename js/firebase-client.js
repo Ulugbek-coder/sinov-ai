@@ -245,6 +245,15 @@ async function uploadSubmission(submissionData, pdfBlob, onProgress) {
     doc.examId = submissionData.examId;
   }
 
+  // Webcam feature turned OFF by the admin for this exam. The admin
+  // dashboard's proctoring column reads this flag to render a
+  // "WEBCAM OFF" badge and an informative evidence modal instead of
+  // risk scores / frames. Absent on legacy submissions and on normal
+  // proctored submissions.
+  if (submissionData.webcamDisabled === true) {
+    doc.webcamDisabled = true;
+  }
+
   // -------------------------------------------------------------
   // Feature 1 — Webcam Proctoring fields
   // -------------------------------------------------------------
@@ -408,6 +417,12 @@ async function uploadSubmission(submissionData, pdfBlob, onProgress) {
       // submissions filter so this fallback record shows under the right exam.
       if (submissionData.examId) {
         fallbackDoc.examId = submissionData.examId;
+      }
+      // Webcam feature turned off by the admin — same flag as the
+      // normal write path so the admin dashboard renders the fallback
+      // record's proctoring column correctly too.
+      if (submissionData.webcamDisabled === true) {
+        fallbackDoc.webcamDisabled = true;
       }
       // Feature 1 — proctoring fields on fallback too
       if (submissionData.proctorSummary) {

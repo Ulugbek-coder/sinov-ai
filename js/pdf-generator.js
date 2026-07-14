@@ -100,6 +100,42 @@ function _drawPhotoPlaceholder(doc, x, y, w, h) {
   doc.text("photo captured", x + w / 2, y + h / 2 + 6, { align: "center" });
 }
 
+// Draw a generic AVATAR image (vector person silhouette) in the photo
+// slot when the instructor turned the webcam feature OFF for this exam.
+// By design no verification photo exists in that case, so instead of
+// the dashed "No verification photo captured" empty state (which reads
+// like an error), we render a neutral avatar placeholder. Drawn with
+// jsPDF vector primitives so no image asset is needed.
+function _drawAvatarPlaceholder(doc, x, y, w, h) {
+  // Soft panel background + solid frame
+  doc.setFillColor(238, 242, 251);
+  doc.setDrawColor(165, 180, 210);
+  doc.setLineWidth(0.8);
+  doc.rect(x, y, w, h, "FD");
+
+  const cx = x + w / 2;
+  const silhouette = [148, 163, 194]; // muted blue-gray
+
+  // Head
+  const headR = w * 0.17;
+  const headCy = y + h * 0.34;
+  doc.setFillColor(silhouette[0], silhouette[1], silhouette[2]);
+  doc.circle(cx, headCy, headR, "F");
+
+  // Shoulders / torso — an ellipse whose top curve forms the shoulders.
+  // Kept fully inside the box so nothing overflows the frame.
+  const bodyRx = w * 0.3;
+  const bodyRy = h * 0.16;
+  const bodyCy = y + h * 0.72;
+  doc.ellipse(cx, bodyCy, bodyRx, bodyRy, "F");
+
+  // Caption inside the box, under the silhouette
+  doc.setFont("helvetica", "italic");
+  doc.setFontSize(7.5);
+  doc.setTextColor(110, 122, 150);
+  doc.text("Avatar", cx, y + h - 8, { align: "center" });
+}
+
 async function generatePDFReport() {
   const data = window._submissionData;
   if (!data) return null;
@@ -348,8 +384,16 @@ async function generatePDFReport() {
   doc.setTextColor(80, 80, 80);
   doc.text(new Date().toLocaleString(), valueX, y + 102);
 
-  // Verification photo (right side)
-  if (data.verificationPhotoDataUrl) {
+  // Verification photo (right side).
+  // When the webcam feature was turned OFF by the admin for this exam,
+  // no verification photo exists by design — draw a neutral avatar
+  // placeholder instead (see _drawAvatarPlaceholder).
+  const _webcamOffForPdf =
+    data.webcamDisabled === true ||
+    (data.examConfig && data.examConfig.webcamEnabled === false);
+  if (_webcamOffForPdf) {
+    _drawAvatarPlaceholder(doc, photoX, photoY, photoBoxW, photoBoxH);
+  } else if (data.verificationPhotoDataUrl) {
     try {
       // Light shadow behind photo for visual weight
       doc.setFillColor(220, 220, 220);
@@ -705,7 +749,46 @@ async function generatePDFReport() {
   // left, plus a grid of stat cards on the right showing the count of
   // each anomaly type. Designed to read at-a-glance and look polished
   // in printed reports.
-  if (
+  if (_webcamOffForPdf) {
+    // Webcam feature turned OFF by the admin for this exam — no
+    // proctoring statistics exist. Render a compact informative note
+    // where the proctoring panel would normally sit.
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(30, 58, 95);
+    doc.text("Webcam Proctoring Statistics", margin, y + 10);
+    const _wOffTitleW = doc.getTextWidth("Webcam Proctoring Statistics");
+    doc.text(
+      "/  Veb Kamera Video Kuzatuv Statistik Hisoboti",
+      margin + _wOffTitleW + 8,
+      y + 10,
+    );
+    y += 16;
+
+    const noteH = 34;
+    doc.setFillColor(243, 244, 246);
+    doc.setDrawColor(75, 85, 99);
+    doc.setLineWidth(0.8);
+    doc.roundedRect(margin, y, contentW, noteH, 4, 4, "FD");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9.5);
+    doc.setTextColor(55, 65, 81);
+    doc.text(
+      "The webcam feature was turned off by the admin for this exam.",
+      margin + 12,
+      y + 15,
+    );
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(107, 114, 128);
+    doc.text(
+      "No verification photo was captured and no webcam proctoring was performed.",
+      margin + 12,
+      y + 26,
+    );
+    doc.setTextColor(0, 0, 0);
+    y += noteH + 14;
+  } else if (
     data.proctorSummary &&
     typeof data.proctorSummary.riskScore === "number"
   ) {
