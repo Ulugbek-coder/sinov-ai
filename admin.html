@@ -16,14 +16,14 @@
       href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/styles.css?v=20260523d" />
+    <link rel="stylesheet" href="css/styles.css?v=20260714a" />
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
     <script src="js/firebase-config.js?v=20260602a"></script>
-    <script src="js/firebase-client.js?v=20260523e"></script>
+    <script src="js/firebase-client.js?v=20260714a"></script>
   </head>
   <body class="sn-body sn-admin-body lang-uz">
     <!-- ========================================================== -->
@@ -102,6 +102,34 @@
             </p>
           </div>
           <div class="sn-admin-section-actions">
+            <!-- Webcam feature master toggle. Clicking it opens a modal
+                 listing every created exam so the instructor can choose
+                 exactly which exams have the webcam feature (verification
+                 photo + live AI proctoring) turned OFF. The switch shows
+                 OFF whenever at least one exam has the webcam disabled.
+                 Wired in js/admin.js (initExamsSection). -->
+            <div
+              class="sn-webcam-toggle-wrap"
+              id="webcamToggleWrap"
+              title="Turn the webcam feature on/off per exam"
+            >
+              <span class="sn-webcam-toggle-label">📷 Webcam Feature</span>
+              <button
+                type="button"
+                id="webcamToggleBtn"
+                class="sn-webcam-toggle-btn"
+                role="switch"
+                aria-checked="true"
+                aria-label="Toggle webcam feature per exam"
+              >
+                <span class="sn-switch-track sn-webcam-toggle-track"
+                  ><span class="sn-switch-thumb"></span
+                ></span>
+              </button>
+              <span id="webcamToggleState" class="sn-webcam-toggle-state is-on"
+                >On</span
+              >
+            </div>
             <button
               id="newExamBtn"
               class="sn-btn-primary sn-btn-compact sn-super-only"
@@ -1009,6 +1037,81 @@
       </aside>
     </div>
 
+    <!-- ========================================================== -->
+    <!-- WEBCAM FEATURE MODAL (per-exam on/off selection)           -->
+    <!-- Opens when the instructor clicks the "Webcam Feature"       -->
+    <!-- toggle in the Exams section. Lists all created exams with a -->
+    <!-- checkbox each: checked = webcam feature turned OFF for that -->
+    <!-- exam (no verification photo, no live AI proctoring).        -->
+    <!-- Wired in js/admin.js.                                       -->
+    <!-- ========================================================== -->
+    <div
+      id="webcamModal"
+      class="sn-exam-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="webcamModalTitle"
+      style="display: none"
+    >
+      <div class="sn-exam-modal-backdrop"></div>
+      <div class="sn-exam-modal-dialog sn-webcam-modal-dialog" role="document">
+        <div class="sn-exam-modal-head">
+          <h3 id="webcamModalTitle" class="sn-exam-modal-title">
+            📷 Webcam Feature — Per-Exam Control
+          </h3>
+          <button
+            type="button"
+            id="webcamModalClose"
+            class="sn-exam-modal-close"
+            aria-label="Close"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            >
+              <path d="M6 6l12 12M6 18L18 6" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="sn-exam-modal-body">
+          <p class="sn-webcam-modal-hint">
+            Check the exams for which the webcam feature must be turned
+            <b>OFF</b> completely. For a checked exam, students will
+            <b>not</b> be asked for a verification photo at the start, and
+            <b>no</b> live AI webcam proctoring will run during the exam. The
+            final scorecard and the auto-generated PDF report will show an
+            avatar placeholder instead of the verification photo. Uncheck an
+            exam to turn the webcam feature back <b>ON</b> for it.
+          </p>
+          <div id="webcamExamList" class="sn-webcam-exam-list">
+            <div class="sn-exam-empty">Loading exams…</div>
+          </div>
+          <div
+            id="webcamModalError"
+            class="sn-login-error"
+            style="display: none"
+          ></div>
+        </div>
+
+        <div class="sn-exam-modal-foot">
+          <button type="button" id="webcamCancel" class="sn-btn-secondary">
+            Cancel
+          </button>
+          <button
+            type="button"
+            id="webcamSave"
+            class="sn-btn-primary sn-btn-compact"
+          >
+            <span class="sn-btn-text">Save Webcam Settings</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Legacy reusable modal (kept for admin.js openModal compatibility) -->
     <div
       id="appModal"
@@ -1030,8 +1133,8 @@
     </div>
 
     <script src="js/questions/coding-bank.js?v=20260602a"></script>
-    <script src="js/proctoring-admin.js?v=20260523c"></script>
+    <script src="js/proctoring-admin.js?v=20260714a"></script>
     <script src="js/header-scroll.js?v=20260521u"></script>
-    <script src="js/admin.js?v=20260523c"></script>
+    <script src="js/admin.js?v=20260714a"></script>
   </body>
 </html>
