@@ -225,6 +225,31 @@ async function generatePDFReport() {
   // etc. The PDF needs flat text. Code snippets stay as plain monospace-
   // ish lines (jsPDF doesn't render <pre> tags). For code-heavy questions
   // the visual quality is slightly degraded but the content is preserved.
+  // Fractional points (Round 3): 40 -> "40", 2.5 -> "2.5". Shares the
+  // implementation exposed by app.js so the PDF and the on-screen
+  // scorecard can never disagree about how a score is written.
+  function fmtP(n) {
+    if (typeof window !== "undefined" && typeof window.snFmtPoints === "function") {
+      return window.snFmtPoints(n);
+    }
+    if (typeof n !== "number" || !isFinite(n)) return String(n == null ? "" : n);
+    return String(Math.round(n * 100) / 100);
+  }
+
+  // Human label for a section key, used in the mixed-points legends.
+  function _sectionLabelForPdf(key) {
+    switch (key) {
+      case "reading":
+        return "Reading";
+      case "grammar":
+        return "Grammar";
+      case "vocabulary":
+        return "Vocabulary";
+      default:
+        return key || "";
+    }
+  }
+
   function stripQuestionHtml(html) {
     if (typeof html !== "string") return "";
     let s = html
@@ -442,7 +467,16 @@ async function generatePDFReport() {
   // to the historical 20-question / 40-point / 4-coding / 60-point layout.
   const mcCountForPdf = (data.mcQuestions && data.mcQuestions.length) || 20;
   const codingArrForPdf = data.codingProblems || [];
-  const codingCountForPdf = codingArrForPdf.length || 4;
+  // FIX (July 2026): this was `codingArrForPdf.length || 4`, so an exam
+  // with ZERO coding problems fell through to 4 — the exact case the
+  // comment further down claims to handle. Every General English exam
+  // (and any pure-MC C++ exam) would have printed four phantom
+  // "Coding Problem" sections full of "(No code submitted)".
+  // Only fall back to 4 when the field is genuinely absent, which is
+  // what a pre-Round-2 legacy submission looks like.
+  const codingCountForPdf = Array.isArray(data.codingProblems)
+    ? data.codingProblems.length
+    : 4;
   const mcMaxForPdf = data.mcMaxPoints != null ? data.mcMaxPoints : 40;
   const codingMaxTotalForPdf =
     data.codingMaxTotal != null
@@ -490,22 +524,26 @@ async function generatePDFReport() {
   doc.setFontSize(9);
   doc.setTextColor(40, 40, 40);
   doc.text(
-    "This exam contains " +
-      mcCountForPdf +
-      " test questions and " +
-      codingCountForPdf +
-      " coding problems.",
+    codingCountForPdf > 0
+      ? "This exam contains " +
+          mcCountForPdf +
+          " test questions and " +
+          codingCountForPdf +
+          " coding problems."
+      : "This exam contains " + mcCountForPdf + " test questions.",
     margin + 14,
     y + 30,
   );
   doc.setFont("helvetica", "italic");
   doc.setTextColor(80, 80, 80);
   doc.text(
-    "Bu imtihon " +
-      mcCountForPdf +
-      " ta test savoli va " +
-      codingCountForPdf +
-      " ta kodlash masalasidan iborat.",
+    codingCountForPdf > 0
+      ? "Bu imtihon " +
+          mcCountForPdf +
+          " ta test savoli va " +
+          codingCountForPdf +
+          " ta kodlash masalasidan iborat."
+      : "Bu imtihon " + mcCountForPdf + " ta test savolidan iborat.",
     margin + 14,
     y + 42,
   );
@@ -515,13 +553,25 @@ async function generatePDFReport() {
   doc.setFontSize(9.5);
   doc.setTextColor(30, 58, 95);
   doc.text(
-    mcCountForPdf + " tests  x  " + mcBd.pointsPerCorrect + " pts",
+    mcBd.mixedPoints && Array.isArray(mcBd.sectionBreakdown)
+      ? mcBd.sectionBreakdown
+          .map(function (sec) {
+            return (
+              _sectionLabelForPdf(sec.section) +
+              " " +
+              sec.count +
+              "x" +
+              fmtP(sec.pointsPerCorrect)
+            );
+          })
+          .join("   ")
+      : mcCountForPdf + " tests  x  " + fmtP(mcBd.pointsPerCorrect) + " pts",
     margin + 14,
     y + 62,
   );
   doc.text("=", margin + 130, y + 62);
   doc.setTextColor(45, 122, 58);
-  doc.text(mcMaxForPdf + " points", margin + 144, y + 62);
+  doc.text(fmtP(mcMaxForPdf) + " points", margin + 144, y + 62);
 
   doc.setTextColor(30, 58, 95);
   doc.text(
@@ -542,7 +592,7 @@ async function generatePDFReport() {
   doc.setTextColor(139, 58, 47);
   doc.text("MAXIMUM TOTAL  /  JAMI MAKSIMUM", margin + 14, y + 86);
   doc.setTextColor(45, 122, 58);
-  doc.text(totalMaxForPdf + " points", margin + contentW - 14, y + 86, {
+  doc.text(fmtP(totalMaxForPdf) + " points", margin + contentW - 14, y + 86, {
     align: "right",
   });
 
@@ -658,7 +708,7 @@ async function generatePDFReport() {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   doc.setTextColor(45, 122, 58);
-  doc.text(mcBd.finalScore + " / " + mcBd.maxPoints + " pts", colPtsX, y + 92, {
+  doc.text(fmtP(mcBd.finalScore) + " / " + fmtP(mcBd.maxPoints) + " pts", colPtsX, y + 92, {
     align: "right",
   });
 
@@ -684,12 +734,12 @@ async function generatePDFReport() {
   doc.text("SCORE  /  BALL", margin + 16, y + 20);
 
   doc.setFontSize(26);
-  doc.text(String(data.mcScore), margin + 16, y + 48);
-  const scoreStrW = doc.getTextWidth(String(data.mcScore));
+  doc.text(fmtP(data.mcScore), margin + 16, y + 48);
+  const scoreStrW = doc.getTextWidth(fmtP(data.mcScore));
   doc.setFontSize(12);
   doc.setTextColor(120, 120, 120);
   doc.text(
-    " / " + mcMaxForPdf + " points",
+    " / " + fmtP(mcMaxForPdf) + " points",
     margin + 16 + scoreStrW + 4,
     y + 48,
   );
@@ -1191,11 +1241,26 @@ async function generatePDFReport() {
   doc.setFontSize(9);
   doc.setTextColor(100, 100, 100);
   const wrongLegendStr =
-    mcBd.penaltyPerWrong > 0 ? "-" + mcBd.penaltyPerWrong + " pts" : "0 pts";
+    mcBd.penaltyPerWrong > 0 ? "-" + fmtP(mcBd.penaltyPerWrong) + " pts" : "0 pts";
+  // Round 3: a section-structured exam (General English) scores each
+  // section at a different rate, so a single "Correct = +N pts" line
+  // would misreport it. Print the per-section rates instead.
+  const correctLegendStr =
+    mcBd.mixedPoints && Array.isArray(mcBd.sectionBreakdown)
+      ? mcBd.sectionBreakdown
+          .map(function (sec) {
+            return (
+              _sectionLabelForPdf(sec.section) +
+              " +" +
+              fmtP(sec.pointsPerCorrect)
+            );
+          })
+          .join(", ")
+      : "+" + fmtP(mcBd.pointsPerCorrect) + " pts";
   doc.text(
-    "Correct = +" +
-      mcBd.pointsPerCorrect +
-      " pts      |      Wrong = " +
+    "Correct = " +
+      correctLegendStr +
+      "      |      Wrong = " +
       wrongLegendStr +
       "      |      Not Answered = 0 pts",
     margin,
@@ -1264,7 +1329,13 @@ async function generatePDFReport() {
   for (let qi = 0; qi < data.mcQuestions.length; qi++) {
     const q = data.mcQuestions[qi];
     const userAns = data.userAnswers[qi];
-    const order = data.optionOrders[qi] || [0, 1, 2, 3];
+    const order =
+      data.optionOrders[qi] ||
+      (Array.isArray(q.opts)
+        ? q.opts.map(function (_, i) {
+            return i;
+          })
+        : [0, 1, 2, 3]);
     const isAnswered =
       userAns !== -1 && userAns !== undefined && userAns !== null;
     // Indexing model (see app.js renderQuestions click handler):
@@ -1367,8 +1438,16 @@ async function generatePDFReport() {
     // ---- Options ----
     // Render in displayed order (the order the student saw on screen).
     // For each displayed index d, the bank-index is order[d].
+    // Round 3: option count is per-question now. The C++ banks are
+    // uniformly 4; General English mixes 4-option grammar items,
+    // 3-option reading/vocabulary items and 2-option True/False items.
+    // Driving the loop off the displayed order (rather than a hardcoded
+    // 4) renders each question with exactly the options it has.
     const optsArr = Array.isArray(q.opts) ? q.opts : [];
-    for (let d = 0; d < 4; d++) {
+    const optCount = Array.isArray(order) && order.length
+      ? order.length
+      : optsArr.length || 4;
+    for (let d = 0; d < optCount; d++) {
       const bankIdx = order[d];
       const opt = optsArr[bankIdx];
       if (!opt) continue;
@@ -1468,7 +1547,13 @@ async function generatePDFReport() {
 
   // ============================================================
   // 5) PART 2: CODING SUBMISSIONS (SIDE-BY-SIDE)
+  // ------------------------------------------------------------
+  // Skipped entirely for exams with no coding part — General English,
+  // and any pure-MC exam. Previously this page was emitted
+  // unconditionally, so such a report carried an orphan "PART 2"
+  // cover page with a legend and no content beneath it.
   // ============================================================
+  if (codingCountForPdf > 0) {
   doc.addPage();
   y = margin;
   headerBar(
@@ -2087,6 +2172,7 @@ async function generatePDFReport() {
 
     y += blockH;
   }
+  } // end: if (codingCountForPdf > 0) — PART 2 coding section
 
   // ============================================================
   // 5.4) AI PERSONALIZED STUDENT FEEDBACK (Feature 2)
@@ -2601,28 +2687,51 @@ async function generatePDFReport() {
   doc.setFontSize(14);
   doc.setTextColor(30, 58, 95);
   doc.text(
-    String(data.mcScore) + " / " + mcMaxForPdf,
+    fmtP(data.mcScore) + " / " + fmtP(mcMaxForPdf),
     margin + 10,
     y + 28 + smallH / 2 + 5,
   );
 
-  // Middle — Total coding (editable, /codingMaxTotal)
-  addFormField(
-    "Total coding score (out of " + codingMaxTotalForPdf + ")",
-    "Jami kodlash ballari (" + codingMaxTotalForPdf + " dan)",
-    margin + summary3W + 10,
-    y,
-    summary3W,
-    smallH,
-    "total_coding",
-    "",
-    false,
-  );
+  // Middle — Total coding (editable, /codingMaxTotal).
+  // An exam with no coding part has nothing for the instructor to
+  // enter here, so we render a read-only dash instead of an editable
+  // "out of 0" box that would only invite confusion.
+  if (codingCountForPdf > 0) {
+    addFormField(
+      "Total coding score (out of " + fmtP(codingMaxTotalForPdf) + ")",
+      "Jami kodlash ballari (" + fmtP(codingMaxTotalForPdf) + " dan)",
+      margin + summary3W + 10,
+      y,
+      summary3W,
+      smallH,
+      "total_coding",
+      "",
+      false,
+    );
+  } else {
+    doc.setFillColor(245, 245, 245);
+    doc.rect(margin + summary3W + 10, y + 28, summary3W, smallH, "F");
+    doc.setDrawColor(180, 180, 180);
+    doc.setLineWidth(0.8);
+    doc.rect(margin + summary3W + 10, y + 28, summary3W, smallH, "S");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(90, 90, 90);
+    doc.text("NO CODING PART", margin + summary3W + 20, y + 22);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(12);
+    doc.setTextColor(120, 120, 120);
+    doc.text(
+      "—",
+      margin + summary3W + 20,
+      y + 28 + smallH / 2 + 4,
+    );
+  }
 
   // Right — Final grade (editable, /totalMax)
   addFormField(
-    "FINAL GRADE (out of " + totalMaxForPdf + ")",
-    "YAKUNIY BAHO (" + totalMaxForPdf + " dan)",
+    "FINAL GRADE (out of " + fmtP(totalMaxForPdf) + ")",
+    "YAKUNIY BAHO (" + fmtP(totalMaxForPdf) + " dan)",
     margin + 2 * summary3W + 20,
     y,
     summary3W,

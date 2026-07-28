@@ -258,9 +258,37 @@
     // full CRUD for super admin). Initialised regardless of role.
     initExamsSection(isSuper);
     loadSubmissions();
+    // Refresh re-queries Firestore; every filter re-filters the cached
+    // rows in memory (see applySubmissionFilters).
     $("refreshBtn").addEventListener("click", loadSubmissions);
-    $("subFilter").addEventListener("change", loadSubmissions);
-    $("subMethod").addEventListener("change", loadSubmissions);
+    $("subFilter").addEventListener("change", applySubmissionFilters);
+    $("subMethod").addEventListener("change", applySubmissionFilters);
+    // Round 3 filters
+    const subVersionEl = $("subVersion");
+    if (subVersionEl) {
+      subVersionEl.addEventListener("change", applySubmissionFilters);
+    }
+    const gradeOpEl = $("subGradeOp");
+    if (gradeOpEl) gradeOpEl.addEventListener("change", applySubmissionFilters);
+    const gradeValEl = $("subGradeVal");
+    if (gradeValEl) {
+      gradeValEl.addEventListener("input", _debouncedFilter);
+    }
+    ["subStudentId", "subName"].forEach(function (id) {
+      const el = $(id);
+      if (el) el.addEventListener("input", _debouncedFilter);
+    });
+    const clearBtn = $("subClearFilters");
+    if (clearBtn) clearBtn.addEventListener("click", clearSubmissionFilters);
+  }
+
+  // Free-text filters run on every keystroke, so coalesce them. The
+  // work is in-memory and cheap, but re-rendering a 500-row table per
+  // character is not.
+  let _filterDebounceT = null;
+  function _debouncedFilter() {
+    clearTimeout(_filterDebounceT);
+    _filterDebounceT = setTimeout(applySubmissionFilters, 180);
   }
 
   // =============================================================
@@ -292,7 +320,69 @@
       label: "National Pedagogical University of Uzbekistan (NPUU)",
     },
   ];
-  const EXAM_COURSES = [{ value: "cpp1", label: "Programming 1 with C++" }];
+  const EXAM_COURSES = [
+    { value: "cpp1", label: "Programming 1 with C++" },
+    { value: "geneng1", label: "General English 1" },
+    { value: "geneng2", label: "General English 2" },
+  ];
+
+  // ---------------------------------------------------------------
+  // General English support (Round 3, July 2026)
+  // ---------------------------------------------------------------
+  // English exams are section-structured (Reading / Grammar /
+  // Vocabulary) instead of "N multiple-choice + M coding". The
+  // instructor sets a question count and a points-per-correct value
+  // per section; there is no coding part.
+  const ENGLISH_COURSE_IDS_ADMIN = ["geneng1", "geneng2"];
+  const ENGLISH_SECTIONS = [
+    { key: "reading", label: "Reading" },
+    { key: "grammar", label: "Grammar" },
+    { key: "vocabulary", label: "Vocabulary" },
+  ];
+
+  function isEnglishCourseAdmin(course) {
+    if (typeof window.isEnglishCourse === "function") {
+      return window.isEnglishCourse(course);
+    }
+    return ENGLISH_COURSE_IDS_ADMIN.indexOf(course) !== -1;
+  }
+
+  // How many questions the bank actually holds per section, so the
+  // form can cap the instructor's counts at what exists.
+  function englishCapacity(course) {
+    if (typeof window.englishBankCapacity === "function") {
+      return window.englishBankCapacity(course);
+    }
+    return { reading: 0, grammar: 0, vocabulary: 0 };
+  }
+
+  // ---------------------------------------------------------------
+  // Fractional points (Round 3, July 2026)
+  // ---------------------------------------------------------------
+  // Points per question may now be fractional (2.5, 3.2, 0.75 …).
+  // These two helpers stop floating-point noise reaching either the
+  // stored values or the dashboard.
+  function roundPts(n) {
+    if (typeof n !== "number" || !isFinite(n)) return 0;
+    return Math.round(n * 100) / 100;
+  }
+
+  // 40 → "40", 2.5 → "2.5", 87.50 → "87.5". Integer scores keep
+  // rendering exactly as they did before fractional support landed.
+  function fmtPts(n) {
+    if (n == null) return "—";
+    const num = typeof n === "number" ? n : parseFloat(n);
+    if (!isFinite(num)) return String(n);
+    return String(roundPts(num));
+  }
+
+  // Parse a possibly-fractional point value out of an input. Returns
+  // NaN when the field is empty or not a number, so callers can tell
+  // "blank" apart from "zero".
+  function parsePts(value) {
+    if (typeof value === "string" && value.trim() === "") return NaN;
+    return parseFloat(value);
+  }
   const EXAM_TYPES = [
     { value: "midterm", label: "Midterm Exam" },
     { value: "final", label: "Final Exam" },
@@ -404,6 +494,36 @@
   }
   function _capitalize(s) {
     return s ? s[0].toUpperCase() + s.slice(1) : s;
+  }
+
+  // Total points an exam is worth: MC part + coding part.
+  // For General English the MC part is the sum over sections of
+  // count x pointsPerCorrect; for every other course it is the flat
+  // mcCount x pointsPerCorrectMc. Used by the exam cards and by the
+  // Final Grade filter's denominator.
+  function _examTotalPoints(d) {
+    if (!d) return 0;
+    let mc = 0;
+    if (isEnglishCourseAdmin(d.course) && d.sections) {
+      ENGLISH_SECTIONS.forEach(function (sec) {
+        const conf = d.sections[sec.key];
+        if (conf && conf.count > 0) {
+          mc += conf.count * (conf.pointsPerCorrect || 0);
+        }
+      });
+    } else {
+      const per =
+        typeof d.pointsPerCorrectMc === "number" && d.pointsPerCorrectMc > 0
+          ? d.pointsPerCorrectMc
+          : 2;
+      mc = (d.mcCount || 0) * per;
+    }
+    const coding = Array.isArray(d.codingMaxPoints)
+      ? d.codingMaxPoints.reduce(function (s, n) {
+          return s + (typeof n === "number" ? n : 0);
+        }, 0)
+      : 0;
+    return roundPts(mc + coding);
   }
   function _formatRelativeTime(date) {
     if (!date) return "—";
@@ -590,6 +710,13 @@
               : defaults[i] || 10;
         }
         _renderCodingMaxGrid(newCount, next);
+      });
+
+      // Round 3 (July 2026): switching to a General English course
+      // swaps the MC/coding inputs for the per-section composition
+      // grid, and back again.
+      $("efCourse").addEventListener("change", function () {
+        _applyCourseModeToForm($("efCourse").value);
       });
     }
 
@@ -778,9 +905,16 @@
       '<div class="sn-exam-stat"><div class="sn-exam-stat-num">' +
       (d.mcCount || 0) +
       '</div><div class="sn-exam-stat-lbl">MC</div></div>' +
-      '<div class="sn-exam-stat"><div class="sn-exam-stat-num">' +
-      (d.codingCount || 0) +
-      '</div><div class="sn-exam-stat-lbl">Coding</div></div>' +
+      // Round 3: a General English exam has no coding part, so the
+      // slot shows its total points instead — the number an English
+      // instructor actually cares about at a glance.
+      (isEnglishCourseAdmin(d.course)
+        ? '<div class="sn-exam-stat"><div class="sn-exam-stat-num">' +
+          fmtPts(_examTotalPoints(d)) +
+          '</div><div class="sn-exam-stat-lbl">Points</div></div>'
+        : '<div class="sn-exam-stat"><div class="sn-exam-stat-num">' +
+          (d.codingCount || 0) +
+          '</div><div class="sn-exam-stat-lbl">Coding</div></div>') +
       '<div class="sn-exam-stat"><div class="sn-exam-stat-num">' +
       (d.duration || 0) +
       '</div><div class="sn-exam-stat-lbl">Min</div></div>' +
@@ -912,6 +1046,10 @@
       }
     });
 
+    // Round 3: the Exam Version filter offers only the versions this
+    // exam is actually configured for.
+    applyVersionFilterToDropdown();
+
     // Filter schedule editor rows to only this exam's eligible groups
     // (based on fieldsOfStudy). For legacy exams without fieldsOfStudy
     // set, show all groups (treat as unconstrained).
@@ -986,6 +1124,10 @@
     $("efMcWrongPenalty").value = "0";
     // Per-problem max points (Round 2) — default 10/15/15/20 for 4 problems
     _renderCodingMaxGrid(4, [10, 15, 15, 20]);
+    // Round 3: seed the English section grid with the paper defaults.
+    // _applyCourseModeToForm below decides which of the two is shown.
+    _renderEnglishSectionGrid("geneng1", _defaultEnglishSections());
+    _applyCourseModeToForm("");
     // Default versions: A + B checked, C + D unchecked
     document
       .querySelectorAll(".sn-chip input[type='checkbox']")
@@ -1035,6 +1177,17 @@
       maxPoints = _defaultCodingMaxArray(codingCount);
     }
     _renderCodingMaxGrid(codingCount, maxPoints);
+    // Round 3: restore the per-section composition for General English
+    // exams. Exams saved before this feature (or non-English exams)
+    // fall back to the paper defaults, which are only ever shown if
+    // the instructor switches the course to a General English one.
+    _renderEnglishSectionGrid(
+      d.course || "geneng1",
+      d.sections && typeof d.sections === "object"
+        ? d.sections
+        : _defaultEnglishSections(),
+    );
+    _applyCourseModeToForm(d.course || "");
     const versions = d.versions || [];
     document
       .querySelectorAll(".sn-chip input[type='checkbox']")
@@ -1044,6 +1197,163 @@
     $("efActive").checked = d.active !== false;
     $("efError").style.display = "none";
     $("examFormModal").style.display = "flex";
+  }
+
+  // ----- General English section composition (Round 3) ----------
+  //
+  // For General English 1 / 2 the exam is described per section rather
+  // than as "N multiple-choice + M coding". Each row of the grid holds
+  // a question count (capped at what the bank actually contains) and a
+  // points-per-correct-answer value that may be fractional.
+
+  function _defaultEnglishSections() {
+    // Mirrors the printed papers: 10x5 + 10x2.5 + 10x2.5 = 100 points.
+    return {
+      reading: { count: 10, pointsPerCorrect: 5 },
+      grammar: { count: 10, pointsPerCorrect: 2.5 },
+      vocabulary: { count: 10, pointsPerCorrect: 2.5 },
+    };
+  }
+
+  function _renderEnglishSectionGrid(course, values) {
+    const grid = $("efEnglishSectionsGrid");
+    if (!grid) return;
+    const cap = englishCapacity(course);
+    const vals = values || _defaultEnglishSections();
+    let html = "";
+    ENGLISH_SECTIONS.forEach(function (sec) {
+      const v = vals[sec.key] || { count: 0, pointsPerCorrect: 1 };
+      const max = cap[sec.key] || 0;
+      html +=
+        '<div class="sn-eng-row">' +
+        '<div class="sn-eng-name">' +
+        sec.label +
+        '<span class="sn-eng-cap">bank holds ' +
+        max +
+        "</span>" +
+        "</div>" +
+        '<div class="sn-eng-field">' +
+        '<label class="sn-label-xs" for="efEng_' +
+        sec.key +
+        '_count">Questions</label>' +
+        '<input type="number" id="efEng_' +
+        sec.key +
+        '_count" class="sn-input sn-eng-count" data-sec="' +
+        sec.key +
+        '" min="0" max="' +
+        max +
+        '" step="1" value="' +
+        Math.min(v.count, max) +
+        '" />' +
+        "</div>" +
+        '<div class="sn-eng-field">' +
+        '<label class="sn-label-xs" for="efEng_' +
+        sec.key +
+        '_pts">Points each</label>' +
+        '<input type="number" id="efEng_' +
+        sec.key +
+        '_pts" class="sn-input sn-eng-pts" data-sec="' +
+        sec.key +
+        '" min="0.01" max="100" step="any" value="' +
+        fmtPts(v.pointsPerCorrect) +
+        '" />' +
+        "</div>" +
+        '<div class="sn-eng-sub" data-sec-total="' +
+        sec.key +
+        '">0 pts</div>' +
+        "</div>";
+    });
+    grid.innerHTML = html;
+    grid
+      .querySelectorAll(".sn-eng-count, .sn-eng-pts")
+      .forEach(function (inp) {
+        inp.addEventListener("input", _updateEnglishTotals);
+      });
+    _updateEnglishTotals();
+  }
+
+  function _updateEnglishTotals() {
+    const grid = $("efEnglishSectionsGrid");
+    if (!grid) return;
+    let totalQ = 0;
+    let totalPts = 0;
+    ENGLISH_SECTIONS.forEach(function (sec) {
+      const cEl = grid.querySelector('.sn-eng-count[data-sec="' + sec.key + '"]');
+      const pEl = grid.querySelector('.sn-eng-pts[data-sec="' + sec.key + '"]');
+      const c = cEl ? parseInt(cEl.value, 10) : 0;
+      const p = pEl ? parsePts(pEl.value) : 0;
+      const count = Number.isFinite(c) && c > 0 ? c : 0;
+      const pts = isFinite(p) && p > 0 ? p : 0;
+      const sub = roundPts(count * pts);
+      totalQ += count;
+      totalPts += sub;
+      const subEl = grid.querySelector('[data-sec-total="' + sec.key + '"]');
+      if (subEl) subEl.textContent = fmtPts(sub) + " pts";
+    });
+    const qEl = $("efEngTotalQ");
+    const pEl2 = $("efEngTotalPts");
+    if (qEl) qEl.textContent = String(totalQ);
+    if (pEl2) pEl2.textContent = fmtPts(roundPts(totalPts));
+  }
+
+  // Read the grid back into the shape stored on the exam doc.
+  function _readEnglishSections() {
+    const grid = $("efEnglishSectionsGrid");
+    const out = {};
+    ENGLISH_SECTIONS.forEach(function (sec) {
+      const cEl = grid
+        ? grid.querySelector('.sn-eng-count[data-sec="' + sec.key + '"]')
+        : null;
+      const pEl = grid
+        ? grid.querySelector('.sn-eng-pts[data-sec="' + sec.key + '"]')
+        : null;
+      const c = cEl ? parseInt(cEl.value, 10) : NaN;
+      const p = pEl ? parsePts(pEl.value) : NaN;
+      out[sec.key] = {
+        count: Number.isFinite(c) ? c : 0,
+        pointsPerCorrect: isFinite(p) ? roundPts(p) : 0,
+      };
+    });
+    return out;
+  }
+
+  // Show the inputs that apply to the selected course and hide the
+  // ones that don't. English → section grid. Everything else → the
+  // original MC count / coding count / per-problem max points.
+  function _applyCourseModeToForm(course) {
+    const english = isEnglishCourseAdmin(course);
+    const show = function (id, visible) {
+      const el = $(id);
+      if (el) el.style.display = visible ? "" : "none";
+    };
+    show("efMcRow", !english);
+    show("efCodingRow", !english);
+    show("efMcCorrectPtsCell", !english);
+    show("efEnglishSectionsRow", english);
+    if (english) {
+      // Coding has no meaning for a language exam.
+      show("efCodingMaxRow", false);
+      const grid = $("efEnglishSectionsGrid");
+      // Re-render whenever the course changes so the per-section caps
+      // match the newly selected course's bank.
+      const existing = grid && grid.children.length ? _readEnglishSections() : null;
+      _renderEnglishSectionGrid(course, existing);
+    } else {
+      // Restore the coding max grid to match the current coding count.
+      const n = parseInt($("efCoding").value, 10);
+      if (Number.isFinite(n) && n > 0) {
+        const current = _readCodingMaxArray();
+        const defaults = _defaultCodingMaxArray(n);
+        const next = new Array(n);
+        for (let i = 0; i < n; i++) {
+          next[i] =
+            current[i] != null && current[i] > 0 ? current[i] : defaults[i] || 10;
+        }
+        _renderCodingMaxGrid(n, next);
+      } else {
+        _renderCodingMaxGrid(0, []);
+      }
+    }
   }
 
   // ----- Per-problem max-points helpers (Round 2) ---------------
@@ -1089,7 +1399,7 @@
         '<div class="sn-coding-max-input-wrap">' +
         '<input type="number" id="efCodingMax' +
         i +
-        '" class="sn-input sn-coding-max-input" min="1" max="100" step="1" value="' +
+        '" class="sn-input sn-coding-max-input" min="0.01" max="100" step="any" value="' +
         v +
         '" data-idx="' +
         i +
@@ -1112,10 +1422,10 @@
     if (!grid || !totalEl) return;
     let total = 0;
     grid.querySelectorAll(".sn-coding-max-input").forEach(function (inp) {
-      const v = parseInt(inp.value, 10);
-      if (Number.isFinite(v) && v > 0) total += v;
+      const v = parsePts(inp.value);
+      if (isFinite(v) && v > 0) total += v;
     });
-    totalEl.textContent = String(total);
+    totalEl.textContent = fmtPts(roundPts(total));
   }
 
   function _readCodingMaxArray() {
@@ -1124,8 +1434,8 @@
     const inputs = grid.querySelectorAll(".sn-coding-max-input");
     const arr = [];
     inputs.forEach(function (inp) {
-      const v = parseInt(inp.value, 10);
-      arr.push(Number.isFinite(v) ? v : 0);
+      const v = parsePts(inp.value);
+      arr.push(isFinite(v) ? roundPts(v) : 0);
     });
     return arr;
   }
@@ -1161,14 +1471,35 @@
     const semester = _getSemesterToggle();
     const degree = $("efDegree").value;
     const examType = $("efExamType").value;
-    const mcCount = parseInt($("efMc").value, 10);
-    const codingCount = parseInt($("efCoding").value, 10);
     const duration = parseInt($("efDuration").value, 10);
-    // Round 2: MC scoring rules
-    const pointsPerCorrectMc = parseInt($("efMcCorrectPts").value, 10);
-    const penaltyPerWrongMc = parseInt($("efMcWrongPenalty").value, 10);
+
+    // Round 3 (July 2026): General English exams are described by a
+    // per-section composition instead of MC/coding counts. We derive
+    // mcCount and the exam's total MC points from those sections and
+    // still write mcCount to the doc, so every existing consumer
+    // (student welcome page, PDF, analytics) keeps working unchanged.
+    const isEnglish = isEnglishCourseAdmin(course);
+    const englishSections = isEnglish ? _readEnglishSections() : null;
+
+    const mcCount = isEnglish
+      ? ENGLISH_SECTIONS.reduce(function (sum, sec) {
+          return sum + (englishSections[sec.key].count || 0);
+        }, 0)
+      : parseInt($("efMc").value, 10);
+    const codingCount = isEnglish ? 0 : parseInt($("efCoding").value, 10);
+
+    // Round 2 + Round 3: MC scoring rules, now fractional-capable.
+    // For English exams the per-correct value lives on each section;
+    // we store the highest section rate as pointsPerCorrectMc purely
+    // so legacy readers see a sane, non-zero number.
+    const penaltyPerWrongMc = parsePts($("efMcWrongPenalty").value);
+    const pointsPerCorrectMc = isEnglish
+      ? ENGLISH_SECTIONS.reduce(function (mx, sec) {
+          return Math.max(mx, englishSections[sec.key].pointsPerCorrect || 0);
+        }, 0) || 1
+      : parsePts($("efMcCorrectPts").value);
     // Round 2: per-problem coding max points
-    const codingMaxPoints = _readCodingMaxArray();
+    const codingMaxPoints = isEnglish ? [] : _readCodingMaxArray();
     const versions = [];
     document
       .querySelectorAll(".sn-chip input[type='checkbox']:checked")
@@ -1217,6 +1548,60 @@
       _showFormError("Please pick an exam type.");
       return;
     }
+    // ---- Round 3: General English section validation ----
+    if (isEnglish) {
+      const cap = englishCapacity(course);
+      let anyQuestions = false;
+      for (let si = 0; si < ENGLISH_SECTIONS.length; si++) {
+        const sec = ENGLISH_SECTIONS[si];
+        const conf = englishSections[sec.key];
+        const max = cap[sec.key] || 0;
+        if (!Number.isFinite(conf.count) || conf.count < 0) {
+          _showFormError(
+            sec.label + " question count must be 0 or a positive whole number.",
+          );
+          return;
+        }
+        if (conf.count > max) {
+          _showFormError(
+            "The " +
+              sec.label +
+              " bank for " +
+              _courseLabel(course) +
+              " holds only " +
+              max +
+              " question" +
+              (max === 1 ? "" : "s") +
+              " — reduce that section to " +
+              max +
+              " or fewer.",
+          );
+          return;
+        }
+        if (conf.count > 0) {
+          anyQuestions = true;
+          if (
+            !isFinite(conf.pointsPerCorrect) ||
+            conf.pointsPerCorrect <= 0 ||
+            conf.pointsPerCorrect > 100
+          ) {
+            _showFormError(
+              "Points per correct answer for " +
+                sec.label +
+                " must be greater than 0 and at most 100. Decimals such as 2.5 are allowed.",
+            );
+            return;
+          }
+        }
+      }
+      if (!anyQuestions) {
+        _showFormError(
+          "An English exam needs at least one question — set a count above 0 for Reading, Grammar or Vocabulary.",
+        );
+        return;
+      }
+    }
+
     if (!Number.isFinite(mcCount) || mcCount < 0 || mcCount > 100) {
       _showFormError("MC question count must be between 0 and 100.");
       return;
@@ -1240,21 +1625,29 @@
       return;
     }
 
-    // Round 2: validate MC scoring rules
+    // Round 2 + Round 3: validate MC scoring rules.
+    // Points may now be fractional (2.5, 3.2, 0.75 …), so these are
+    // range checks rather than integer checks. The upper bound moved
+    // from 10 to 100 because a section-weighted exam can legitimately
+    // put a large value on a single question.
     if (
-      !Number.isFinite(pointsPerCorrectMc) ||
-      pointsPerCorrectMc < 1 ||
-      pointsPerCorrectMc > 10
+      !isFinite(pointsPerCorrectMc) ||
+      pointsPerCorrectMc <= 0 ||
+      pointsPerCorrectMc > 100
     ) {
-      _showFormError("Points per correct MC answer must be between 1 and 10.");
+      _showFormError(
+        "Points per correct answer must be greater than 0 and at most 100. Decimals such as 2.5 are allowed.",
+      );
       return;
     }
     if (
-      !Number.isFinite(penaltyPerWrongMc) ||
+      !isFinite(penaltyPerWrongMc) ||
       penaltyPerWrongMc < 0 ||
-      penaltyPerWrongMc > 10
+      penaltyPerWrongMc > 100
     ) {
-      _showFormError("Penalty per wrong MC answer must be between 0 and 10.");
+      _showFormError(
+        "Penalty per wrong answer must be between 0 and 100. Decimals are allowed; 0 means no penalty.",
+      );
       return;
     }
     // Round 2: validate per-problem coding max points
@@ -1267,11 +1660,11 @@
       }
       for (let i = 0; i < codingCount; i++) {
         const v = codingMaxPoints[i];
-        if (!Number.isFinite(v) || v < 1 || v > 100) {
+        if (!isFinite(v) || v <= 0 || v > 100) {
           _showFormError(
             "Max points for Problem " +
               (i + 1) +
-              " must be an integer between 1 and 100.",
+              " must be greater than 0 and at most 100. Decimals such as 12.5 are allowed.",
           );
           return;
         }
@@ -1290,12 +1683,26 @@
       mcCount: mcCount,
       codingCount: codingCount,
       duration: duration,
-      // Round 2: MC scoring rules
-      pointsPerCorrectMc: pointsPerCorrectMc,
-      penaltyPerWrongMc: penaltyPerWrongMc,
+      // Round 2 + Round 3: MC scoring rules (fractional-capable)
+      pointsPerCorrectMc: roundPts(pointsPerCorrectMc),
+      penaltyPerWrongMc: roundPts(penaltyPerWrongMc),
       pointsPerUnansweredMc: 0, // fixed by design; stored for future flexibility
       // Round 2: per-problem coding max points (array length = codingCount)
       codingMaxPoints: codingCount > 0 ? codingMaxPoints : [],
+      // Round 3: per-section composition. Written only for General
+      // English exams; null everywhere else so the student page can
+      // tell the two exam shapes apart without guessing.
+      sections: isEnglish
+        ? ENGLISH_SECTIONS.reduce(function (acc, sec) {
+            acc[sec.key] = {
+              count: englishSections[sec.key].count,
+              pointsPerCorrect: roundPts(
+                englishSections[sec.key].pointsPerCorrect,
+              ),
+            };
+            return acc;
+          }, {})
+        : null,
       versions: versions,
       active: active,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -1936,12 +2343,13 @@
       return;
     }
 
-    const group = $("subFilter").value;
-    const method = $("subMethod").value;
-
-    // Filter by examId on the client (avoids needing composite indexes).
-    // Legacy submissions (no examId field) are intentionally NOT shown —
-    // they can be viewed via the older deployed app.
+    // Round 3 (July 2026): the fetch and the filtering are now
+    // separate. We pull the exam's submissions once into
+    // _submissionRows, then every filter change re-filters that cached
+    // array in memory. Before this split, each filter change issued a
+    // fresh Firestore query — fine for two dropdowns, but the new
+    // Student ID and Full Name filters are free-text, and re-querying
+    // on every keystroke would be both slow and expensive.
     window.fbDb
       .collection("submissions")
       .orderBy("submittedAt", "desc")
@@ -1956,29 +2364,188 @@
           if (d.examId !== _selectedExamId) return;
           // Hard cutoff: never show a submission whose group is outside
           // the current user's allowedGroups, even if the dropdown was
-          // somehow tampered with.
+          // somehow tampered with. This stays on the fetch side so a
+          // restricted instructor can never hold out-of-scope rows in
+          // memory, whatever the UI filters say.
           if (!canSeeGroup(d.group)) return;
-          if (group && d.group !== group) return;
-          // Method filter uses normalized names. Translate old records so
-          // they match the filter dropdown options.
-          if (method) {
-            let m = d.uploadMethod || "";
-            if (m === "firebase") m = "firebase_manual";
-            if (m === "google_form_fallback") m = "google_form";
-            if (m !== method) return;
-          }
           rows.push({ id: doc.id, ...d });
         });
-        renderSubmissions(rows);
+        _submissionRows = rows;
+        applySubmissionFilters();
       })
       .catch(function (err) {
         console.error(err);
+        _submissionRows = [];
         tb.innerHTML =
           '<tr><td colspan="12" class="admin-empty err">Load failed: ' +
           escapeHtml(err.message) +
           "</td></tr>";
         if (subCountNum) subCountNum.textContent = "!";
       });
+  }
+
+  // =============================================================
+  // SUBMISSION FILTERS (Round 3, July 2026)
+  // -------------------------------------------------------------
+  // Six filters, all applied in memory against _submissionRows:
+  //   Group          — exact match (existing)
+  //   Method         — normalized upload method (existing)
+  //   Student ID     — case-insensitive substring (new)
+  //   Full Name      — case-insensitive substring over "First Last" (new)
+  //   Exam Version   — exact match (new)
+  //   Final Grade    — comparison against a point threshold (new)
+  //
+  // Substring rather than exact matching on ID and name is deliberate:
+  // instructors typically remember a fragment ("…345", "Aziza") rather
+  // than a full record.
+  // =============================================================
+
+  // Cache of everything fetched for the selected exam, pre-filtered
+  // only by exam scope and group permissions.
+  let _submissionRows = [];
+
+  // Resolve a row's final grade the same way the table's Final Grade
+  // column does, so filtering and display can never disagree.
+  // Returns null when the submission has not been graded yet.
+  function _rowFinalGrade(r) {
+    if (!r) return null;
+    if (r.finalGrade != null) return r.finalGrade;
+    const instructor = r.instructorGrading || null;
+    if (instructor && instructor.totalCoding != null) {
+      return roundPts((r.mcScore || 0) + instructor.totalCoding);
+    }
+    // A submission from an exam with no coding part is fully graded
+    // the moment it lands — its MC score IS its final grade.
+    const codingMeta = r.codingProblemMeta;
+    const hasCoding = Array.isArray(codingMeta) && codingMeta.length > 0;
+    if (!hasCoding && r.mcScore != null) return roundPts(r.mcScore);
+    return null;
+  }
+
+  function _normalizedMethod(d) {
+    let m = (d && d.uploadMethod) || "";
+    if (m === "firebase") m = "firebase_manual";
+    if (m === "google_form_fallback") m = "google_form";
+    return m;
+  }
+
+  function applySubmissionFilters() {
+    const tb = $("subsTbody");
+    if (!tb) return;
+
+    const group = $("subFilter") ? $("subFilter").value : "";
+    const method = $("subMethod") ? $("subMethod").value : "";
+    const sid = $("subStudentId")
+      ? $("subStudentId").value.trim().toLowerCase()
+      : "";
+    const name = $("subName") ? $("subName").value.trim().toLowerCase() : "";
+    const version = $("subVersion") ? $("subVersion").value : "";
+    const gradeOp = $("subGradeOp") ? $("subGradeOp").value : "";
+    const gradeValRaw = $("subGradeVal") ? $("subGradeVal").value : "";
+    const gradeVal = parsePts(gradeValRaw);
+    const gradeActive = !!gradeOp && isFinite(gradeVal);
+
+    // The grade value box is only meaningful once a comparison is
+    // chosen — keep it disabled until then so the UI explains itself.
+    const gradeValEl = $("subGradeVal");
+    if (gradeValEl) gradeValEl.disabled = !gradeOp;
+
+    const rows = _submissionRows.filter(function (r) {
+      if (group && r.group !== group) return false;
+      if (method && _normalizedMethod(r) !== method) return false;
+      if (version && String(r.version || "") !== version) return false;
+      if (sid && String(r.studentId || "").toLowerCase().indexOf(sid) === -1) {
+        return false;
+      }
+      if (name) {
+        const full = [r.firstName, r.lastName]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        if (full.indexOf(name) === -1) return false;
+      }
+      if (gradeActive) {
+        const fg = _rowFinalGrade(r);
+        // Ungraded submissions have no grade to compare against, so a
+        // grade filter necessarily excludes them.
+        if (fg == null) return false;
+        if (gradeOp === "gte" && !(fg >= gradeVal)) return false;
+        if (gradeOp === "gt" && !(fg > gradeVal)) return false;
+        if (gradeOp === "lte" && !(fg <= gradeVal)) return false;
+        if (gradeOp === "lt" && !(fg < gradeVal)) return false;
+        if (gradeOp === "eq" && roundPts(fg) !== roundPts(gradeVal)) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    renderSubmissions(rows);
+    _updateFilterSummary(rows.length, _submissionRows.length);
+  }
+
+  // A one-line "showing X of Y" note under the toolbar, plus an
+  // active-state highlight on the Clear filters button. Without it,
+  // a stale text filter looks identical to "this exam has no
+  // submissions", which is a genuinely confusing failure mode.
+  function _updateFilterSummary(shown, total) {
+    const el = $("subFilterSummary");
+    if (!el) return;
+    const anyActive =
+      ($("subFilter") && $("subFilter").value) ||
+      ($("subMethod") && $("subMethod").value) ||
+      ($("subStudentId") && $("subStudentId").value.trim()) ||
+      ($("subName") && $("subName").value.trim()) ||
+      ($("subVersion") && $("subVersion").value) ||
+      ($("subGradeOp") && $("subGradeOp").value);
+    if (!anyActive) {
+      el.textContent = "";
+      el.style.display = "none";
+    } else {
+      el.style.display = "";
+      el.textContent =
+        "Showing " + shown + " of " + total + " submissions for this exam.";
+    }
+    const clearBtn = $("subClearFilters");
+    if (clearBtn) clearBtn.classList.toggle("is-active", !!anyActive);
+  }
+
+  function clearSubmissionFilters() {
+    // Group is left alone for restricted instructors, who have no
+    // "All groups" option to fall back to.
+    const sel = $("subFilter");
+    if (sel && currentPerm && currentPerm.role === "super") sel.value = "";
+    if ($("subMethod")) $("subMethod").value = "";
+    if ($("subStudentId")) $("subStudentId").value = "";
+    if ($("subName")) $("subName").value = "";
+    if ($("subVersion")) $("subVersion").value = "";
+    if ($("subGradeOp")) $("subGradeOp").value = "";
+    if ($("subGradeVal")) $("subGradeVal").value = "";
+    applySubmissionFilters();
+  }
+
+  // Rebuild the version dropdown from the selected exam's configured
+  // versions, so an A/B exam doesn't offer C and D.
+  function applyVersionFilterToDropdown() {
+    const sel = $("subVersion");
+    if (!sel) return;
+    const exam = _examDocs.find(function (e) {
+      return e._id === _selectedExamId;
+    });
+    const versions =
+      exam && Array.isArray(exam.versions) && exam.versions.length
+        ? exam.versions
+        : ["A", "B", "C", "D"];
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">Any version</option>';
+    versions.forEach(function (v) {
+      const o = document.createElement("option");
+      o.value = v;
+      o.textContent = "Version " + v;
+      sel.appendChild(o);
+    });
+    // Keep the instructor's choice if it still exists on this exam.
+    sel.value = versions.indexOf(prev) !== -1 ? prev : "";
   }
 
   function renderSubmissions(rows) {
@@ -2069,7 +2636,8 @@
       // as mcMaxPoints. Legacy submissions lack this field and default to
       // 40 (the old hardcoded value of 20 questions × 2 points each).
       const mcMax = r.mcMaxPoints != null ? r.mcMaxPoints : 40;
-      const mcDisplay = r.mcScore != null ? r.mcScore + "/" + mcMax : "—";
+      const mcDisplay =
+        r.mcScore != null ? fmtPts(r.mcScore) + "/" + fmtPts(mcMax) : "—";
 
       // Feature 6: AI Code Auto-Grader cells
       // ----------------------------------------
@@ -2085,7 +2653,16 @@
             return s + (p.maxPoints || 0);
           }, 0) || 60;
       let aiCodingCell;
-      if (!r.codingAnswers || !r.codingAnswers.length) {
+      const hasCodingPart =
+        Array.isArray(r.codingProblemMeta) && r.codingProblemMeta.length > 0;
+      if (!hasCodingPart) {
+        // Round 3: exams with no coding part at all (General English,
+        // or any pure-MC exam) have nothing to grade — say so plainly
+        // rather than offering a "Grade with AI" button that would
+        // have nothing to work on.
+        aiCodingCell =
+          '<span class="muted" title="This exam has no coding part.">No coding part</span>';
+      } else if (!r.codingAnswers || !r.codingAnswers.length) {
         aiCodingCell =
           '<span class="muted" title="This submission predates Feature 6 — coding answers were not saved.">Not gradable</span>';
       } else if (grading && grading.status === "graded") {
@@ -2094,9 +2671,9 @@
           esc(r.id) +
           '">' +
           '<span class="sn-cgb-score">' +
-          grading.totalCoding +
+          fmtPts(grading.totalCoding) +
           " / " +
-          codingMax +
+          fmtPts(codingMax) +
           "</span>" +
           '<span class="sn-cgb-label">AI graded</span>' +
           "</button>";
@@ -2118,20 +2695,17 @@
             return s + (p.maxPoints || 0);
           }, 0);
       const totalMaxForRow = (mcMax || 0) + (codingMaxTotal || 0) || 100;
-      if (r.finalGrade != null) {
+      // Round 3: _rowFinalGrade owns the "what is this row's final
+      // grade" question so the column and the Final Grade filter can
+      // never disagree. It also treats a no-coding exam (every General
+      // English exam) as fully graded on submission.
+      const rowFinal = _rowFinalGrade(r);
+      if (rowFinal != null) {
         finalCell =
           '<span class="sn-final-grade">' +
-          r.finalGrade +
+          fmtPts(rowFinal) +
           " / " +
-          totalMaxForRow +
-          "</span>";
-      } else if (instructor && instructor.totalCoding != null) {
-        const fg = (r.mcScore || 0) + instructor.totalCoding;
-        finalCell =
-          '<span class="sn-final-grade">' +
-          fg +
-          " / " +
-          totalMaxForRow +
+          fmtPts(totalMaxForRow) +
           "</span>";
       } else {
         finalCell = '<span class="muted">—</span>';
@@ -3062,8 +3636,8 @@
       idx +
       '" min="0" max="' +
       max +
-      '" step="1" value="' +
-      overrideScore +
+      '" step="any" value="' +
+      fmtPts(overrideScore) +
       '"/>' +
       '<span class="sn-override-score-max">/ ' +
       max +
@@ -3192,20 +3766,22 @@
     if (scoreInput && _gradingState) {
       const p = _gradingState.problems[idx];
       if (!p.override) {
-        const initialScore = parseInt(scoreInput.value, 10);
+        const initialScore = parsePts(scoreInput.value);
         p.override = {
-          score: Number.isFinite(initialScore) ? initialScore : 0,
+          score: isFinite(initialScore) ? roundPts(initialScore) : 0,
           comment: (commentInput && commentInput.value) || "",
         };
       }
     }
     if (scoreInput) {
       scoreInput.addEventListener("input", function () {
-        const v = parseInt(scoreInput.value, 10);
+        const v = parsePts(scoreInput.value);
         if (!_gradingState) return;
         const p = _gradingState.problems[idx];
         const max = p.meta.maxPoints || 10;
-        const clamped = Math.max(0, Math.min(max, Number.isFinite(v) ? v : 0));
+        const clamped = roundPts(
+          Math.max(0, Math.min(max, isFinite(v) ? v : 0)),
+        );
         p.override = p.override || { score: clamped, comment: "" };
         p.override.score = clamped;
         updateGradingSummary();
@@ -3427,7 +4003,8 @@
     if (!_gradingState) return;
     const sub = _gradingState.submission;
     // MC
-    $("sgdMcValue").textContent = sub.mcScore != null ? sub.mcScore : "—";
+    $("sgdMcValue").textContent =
+      sub.mcScore != null ? fmtPts(sub.mcScore) : "—";
     // AI coding total
     let aiTotal = 0;
     let aiHasAny = false;
@@ -3437,7 +4014,7 @@
         aiHasAny = true;
       }
     });
-    $("sgdAiCodingValue").textContent = aiHasAny ? String(aiTotal) : "—";
+    $("sgdAiCodingValue").textContent = aiHasAny ? fmtPts(aiTotal) : "—";
     // Instructor coding total
     let instTotal = 0;
     let instHasAny = false;
@@ -3450,11 +4027,11 @@
       }
     });
     $("sgdInstructorCodingValue").textContent = instHasAny
-      ? String(instTotal)
+      ? fmtPts(instTotal)
       : "—";
     // Final grade
-    const fg = (sub.mcScore || 0) + instTotal;
-    $("sgdFinalValue").textContent = String(fg);
+    const fg = roundPts((sub.mcScore || 0) + instTotal);
+    $("sgdFinalValue").textContent = fmtPts(fg);
     // Save button: ENABLED whenever no problem is currently being graded.
     // Failed problems can still be saved (instructor types a manual score).
     // Even fully un-graded problems can be saved if the instructor wants to
@@ -3512,12 +4089,14 @@
       };
       instTotal += oScore;
     });
-    aiGrading.totalCoding = aiTotal;
-    aiGrading.maxCoding = _gradingState.problems.reduce(function (s, p) {
-      return s + (p.meta.maxPoints || 0);
-    }, 0);
-    instructorGrading.totalCoding = instTotal;
-    const finalGrade = (sub.mcScore || 0) + instTotal;
+    aiGrading.totalCoding = roundPts(aiTotal);
+    aiGrading.maxCoding = roundPts(
+      _gradingState.problems.reduce(function (s, p) {
+        return s + (p.meta.maxPoints || 0);
+      }, 0),
+    );
+    instructorGrading.totalCoding = roundPts(instTotal);
+    const finalGrade = roundPts((sub.mcScore || 0) + instTotal);
 
     try {
       await window.fbDb.collection("submissions").doc(sub.id).set(

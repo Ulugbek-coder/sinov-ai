@@ -405,9 +405,18 @@
       });
   }
 
+  // Course code -> human label. Mirrors EXAM_COURSES in admin.js;
+  // kept local because analytics.js doesn't load the admin module.
+  const ANALYTICS_COURSE_LABELS = {
+    cpp1: "Programming 1 with C++",
+    geneng1: "General English 1",
+    geneng2: "General English 2",
+  };
+
   function examLabel(ex) {
-    // Format: "Programming 1 — Final Exam (Spring 2025-2026)"
-    const course = ex.course || "Course";
+    // Format: "Programming 1 with C++ — Final Exam (Spring 2025-2026)"
+    const course =
+      ANALYTICS_COURSE_LABELS[ex.course] || ex.course || "Course";
     const typeRaw = ex.examType || "";
     const typeMap = {
       midterm: "Midterm",

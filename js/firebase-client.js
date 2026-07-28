@@ -300,12 +300,21 @@ async function uploadSubmission(submissionData, pdfBlob, onProgress) {
   // Older submissions (before Feature 6) lack these fields; the admin
   // UI shows "Cannot grade — code data missing" for them.
   const codingProblems = submissionData.codingProblems || [];
-  const codingAnswers = [
-    submissionData.code1 || "",
-    submissionData.code2 || "",
-    submissionData.code3 || "",
-    submissionData.code4 || "",
-  ];
+  // FIX (July 2026): derive the answers from the Round 2 dynamic array
+  // when it is available, so the stored length matches the number of
+  // coding problems the exam actually had. The old code always wrote
+  // four entries, which meant a zero-coding exam (every General English
+  // exam, and any pure-MC C++ exam) arrived in the admin dashboard
+  // looking like it had four gradable answers. Falls back to the legacy
+  // code1..code4 fields for any caller that still sets only those.
+  const codingAnswers = Array.isArray(submissionData.codingAnswers)
+    ? submissionData.codingAnswers.slice(0, codingProblems.length || undefined)
+    : [
+        submissionData.code1 || "",
+        submissionData.code2 || "",
+        submissionData.code3 || "",
+        submissionData.code4 || "",
+      ];
   doc.codingAnswers = codingAnswers;
   doc.codingProblemMeta = codingProblems.map(function (p, idx) {
     const defaults = [10, 15, 15, 20];

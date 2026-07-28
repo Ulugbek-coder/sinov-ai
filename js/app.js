@@ -180,6 +180,30 @@ function stripHtml(html) {
   return tmp.textContent || tmp.innerText || "";
 }
 
+// ---------------- Fractional points (Round 3, July 2026) ----------------
+// Instructors can now award fractional points per question (2.5, 3.2,
+// 0.75 …). Two helpers keep that from leaking floating-point noise
+// into scores and into the UI.
+
+// Round to 2 decimal places. Without this, accumulating 2.5 + 2.5 + 5
+// style values across 30 questions can surface artifacts like
+// 87.49999999999999 in the stored score.
+function roundPoints(n) {
+  if (typeof n !== "number" || !isFinite(n)) return 0;
+  return Math.round(n * 100) / 100;
+}
+
+// Format a point value for display: 40 → "40", 2.5 → "2.5",
+// 87.50 → "87.5". Keeps whole numbers looking whole so existing
+// integer-scored exams read exactly as they always have.
+function fmtPoints(n) {
+  if (typeof n !== "number" || !isFinite(n)) return String(n == null ? "" : n);
+  return String(roundPoints(n));
+}
+// Exposed so pdf-generator.js can share the exact same formatting.
+window.snFmtPoints = fmtPoints;
+window.snRoundPoints = roundPoints;
+
 // Escape option text so that bare angle brackets in C++ option strings
 // (like "<string>", "<iostream>", "static_cast<int>") render as literal
 // text instead of being silently eaten by the browser as unknown HTML
@@ -277,6 +301,34 @@ function selectArrangeAndShuffle(mainBank, newBank, seed, mcCount) {
   // interleaved into the main pool instead of clustered at the end.
   const combined = shuffledOld.concat(shuffledNew);
   const selected = seededShuffle(combined, rng);
+
+  return buildBalancedOptionOrders(selected, rng, seed);
+}
+
+// ---------------- Balanced option ordering ----------------
+// Shared by the C++ selector above and the General English selector
+// below. Given the already-selected question list, produce an
+// `optionOrders` array where optionOrders[i] lists the ORIGINAL option
+// indices in the order they will be displayed, with correct answers
+// spread evenly across answer positions.
+//
+// `rng` is passed in (rather than re-derived from `seed`) so the C++
+// path keeps its exact historical RNG stream: the selection shuffles
+// above advance the generator before we get here, and re-seeding would
+// change every existing exam's layout.
+//
+// July 2026 — variable option counts:
+// The balanced target pool is still built over 4 positions (unchanged
+// for the 4-option C++ banks). For questions with fewer options — the
+// 3-option General English reading/vocabulary items and the 2-option
+// True/False items — the target is wrapped into range with a modulo.
+// For a 4-option question `target % 4` is a no-op, so C++ exams are
+// bit-for-bit identical to before this change.
+//
+// Questions flagged `fixedOrder: true` (True/False) keep their printed
+// option order — shuffling a two-option True/False question gains no
+// anti-cheating value and just reads as a mistake to students.
+function buildBalancedOptionOrders(selected, rng, seed) {
   const N = selected.length;
 
   // --- 2) build balanced target positions ---
@@ -352,13 +404,25 @@ function selectArrangeAndShuffle(mainBank, newBank, seed, mcCount) {
   // ORIGINAL option indices (0..3) in the order they will be displayed.
   const rngOpts = seededRNG(seed + "_opts");
   const optionOrders = selected.map((q, i) => {
-    const target = targetPool[i];
-    const others = [0, 1, 2, 3].filter((idx) => idx !== q.correct);
+    // How many options does THIS question actually have? The C++ banks
+    // are uniformly 4; General English mixes 2, 3 and 4.
+    const nOpts = Array.isArray(q.opts) && q.opts.length ? q.opts.length : 4;
+    const identity = [];
+    for (let p = 0; p < nOpts; p++) identity.push(p);
+
+    // True/False and any other explicitly-pinned item keeps its
+    // printed order.
+    if (q.fixedOrder) return identity;
+
+    // Wrap the balanced target into this question's range. No-op when
+    // nOpts === 4, which is every C++ question.
+    const target = targetPool[i] % nOpts;
+    const others = identity.filter((idx) => idx !== q.correct);
     const shuffledOthers = seededShuffle(others, rngOpts);
-    const order = [0, 0, 0, 0];
+    const order = new Array(nOpts).fill(0);
     order[target] = q.correct;
     let k = 0;
-    for (let p = 0; p < 4; p++) {
+    for (let p = 0; p < nOpts; p++) {
       if (p === target) continue;
       order[p] = shuffledOthers[k++];
     }
@@ -366,6 +430,161 @@ function selectArrangeAndShuffle(mainBank, newBank, seed, mcCount) {
   });
 
   return { selected, optionOrders };
+}
+
+// ===============================================================
+// GENERAL ENGLISH EXAMS (July 2026)
+// ---------------------------------------------------------------
+// General English 1 / 2 are section-structured rather than
+// bank-shuffled: the instructor configures how many questions come
+// from Reading, Grammar and Vocabulary, and each section carries its
+// own points-per-correct-answer value (typically 5 / 2.5 / 2.5).
+//
+// Differences from the C++ path:
+//   - questions are drawn per section, not from one pooled bank
+//   - reading questions are tied to a passage, so we pick whole
+//     passages and keep their questions together
+//   - section order is fixed (Reading → Grammar → Vocabulary) so the
+//     on-screen exam mirrors the printed paper
+//   - questions are English-only (see english-bank.js)
+// ===============================================================
+
+// Canonical list of English course codes. Prefers the definition in
+// english-bank.js; the inline fallback keeps this file working if the
+// bank script fails to load (the exam then simply behaves as before).
+const ENGLISH_COURSE_FALLBACK = ["geneng1", "geneng2"];
+
+function isEnglishCourse(course) {
+  if (typeof window.isEnglishCourse === "function") {
+    return window.isEnglishCourse(course);
+  }
+  return ENGLISH_COURSE_FALLBACK.indexOf(course) !== -1;
+}
+
+// True when the ACTIVE exam is a General English exam. Drives
+// English-only question rendering and the language-switcher lock on
+// exam.html. Every other course keeps full EN/UZ/RU translation.
+function examIsEnglishOnly() {
+  const cfg = window._sinovActiveExamConfig;
+  return !!(cfg && isEnglishCourse(cfg.course));
+}
+
+// Default section configuration, used when an exam doc predates the
+// section feature or has a malformed `sections` map. Mirrors the
+// printed papers: Reading 10x5 + Grammar 10x2.5 + Vocabulary 10x2.5
+// = 100 points.
+function defaultEnglishSections() {
+  return {
+    reading: { count: 10, pointsPerCorrect: 5 },
+    grammar: { count: 10, pointsPerCorrect: 2.5 },
+    vocabulary: { count: 10, pointsPerCorrect: 2.5 },
+  };
+}
+
+// Normalize whatever is on the exam doc into a complete, sane
+// section map. Never throws; always returns all three sections.
+function normalizeEnglishSections(raw) {
+  const defaults = defaultEnglishSections();
+  const out = {};
+  ["reading", "grammar", "vocabulary"].forEach(function (key) {
+    const src = (raw && raw[key]) || {};
+    const count =
+      typeof src.count === "number" && src.count >= 0
+        ? Math.floor(src.count)
+        : defaults[key].count;
+    const pts =
+      typeof src.pointsPerCorrect === "number" && src.pointsPerCorrect > 0
+        ? src.pointsPerCorrect
+        : defaults[key].pointsPerCorrect;
+    out[key] = { count: count, pointsPerCorrect: pts };
+  });
+  return out;
+}
+
+// Build the full question list for a General English exam.
+//
+// Returns { selected, optionOrders } in exactly the shape
+// selectArrangeAndShuffle returns, so every downstream consumer
+// (renderer, scorer, PDF, feedback) works unchanged.
+//
+// Each returned question carries:
+//   .section  — "reading" | "grammar" | "vocabulary"
+//   .points   — points awarded for a correct answer
+//   .passage  — passage id (reading only)
+function buildEnglishExam(course, sections, seed) {
+  const bank = (window.ENGLISH_BANK || {})[course];
+  if (!bank) return null;
+
+  const cfg = normalizeEnglishSections(sections);
+  const rng = seededRNG(seed || "english_default");
+  const selected = [];
+
+  ["reading", "grammar", "vocabulary"].forEach(function (sectionKey) {
+    const want = cfg[sectionKey].count;
+    if (!want) return;
+    const pool = Array.isArray(bank[sectionKey]) ? bank[sectionKey] : [];
+    if (!pool.length) return;
+
+    let picked;
+    if (sectionKey === "reading") {
+      // Reading questions belong to a passage. Shuffle the PASSAGES,
+      // then walk them in that order taking questions until we have
+      // enough — so a 10-question reading section uses one passage
+      // rather than half of each, and students aren't asked to read
+      // two texts to answer five questions apiece.
+      const byPassage = {};
+      const passageOrder = [];
+      pool.forEach(function (q) {
+        const pid = q.passage || "_none";
+        if (!byPassage[pid]) {
+          byPassage[pid] = [];
+          passageOrder.push(pid);
+        }
+        byPassage[pid].push(q);
+      });
+      const shuffledPassages = seededShuffle(passageOrder, rng);
+      picked = [];
+      shuffledPassages.forEach(function (pid) {
+        if (picked.length >= want) return;
+        const remaining = want - picked.length;
+        // Shuffle within the passage so two versions of the same
+        // passage don't ask the questions in the same order.
+        const qs = seededShuffle(byPassage[pid], rng).slice(0, remaining);
+        picked = picked.concat(qs);
+      });
+    } else {
+      picked = seededShuffle(pool, rng).slice(0, Math.min(want, pool.length));
+    }
+
+    // Stamp the per-section point value onto every question. The
+    // scorer reads q.points, which is what makes fractional and
+    // per-section scoring work end to end.
+    picked.forEach(function (q) {
+      selected.push(
+        Object.assign({}, q, {
+          section: sectionKey,
+          points: cfg[sectionKey].pointsPerCorrect,
+        }),
+      );
+    });
+  });
+
+  if (!selected.length) return null;
+  return buildBalancedOptionOrders(selected, rng, (seed || "english") + "_en");
+}
+
+// Human labels for the section dividers rendered on the exam page.
+function englishSectionLabel(key) {
+  switch (key) {
+    case "reading":
+      return "Reading";
+    case "grammar":
+      return "Grammar";
+    case "vocabulary":
+      return "Vocabulary";
+    default:
+      return key || "";
+  }
 }
 
 // ---------------- Coding problem picker ----------------
@@ -742,8 +961,12 @@ async function startExam() {
   const cfg = window._sinovActiveExamConfig || {};
   const mcCount =
     typeof cfg.mcCount === "number" && cfg.mcCount > 0 ? cfg.mcCount : 20;
-  const codingCount =
-    typeof cfg.codingCount === "number" && cfg.codingCount >= 0
+  // General English exams never have a coding part. Guard here as well
+  // as in the admin form so a hand-edited or legacy exam doc can't
+  // hand a language student four C++ problems.
+  const codingCount = isEnglishCourse(cfg.course)
+    ? 0
+    : typeof cfg.codingCount === "number" && cfg.codingCount >= 0
       ? cfg.codingCount
       : 4;
   const codingMaxPoints =
@@ -754,7 +977,31 @@ async function startExam() {
 
   // Build MC questions for this version (count comes from exam config).
   // If mcCount is 0, skip the MC build entirely; the exam is coding-only.
-  if (mcCount === 0) {
+  // July 2026: General English exams are section-structured and draw
+  // from their own banks. Every other course keeps the original
+  // pooled-bank selection untouched.
+  const isEnglishExam = isEnglishCourse(cfg.course);
+
+  if (isEnglishExam) {
+    const result = buildEnglishExam(
+      cfg.course,
+      cfg.sections,
+      mcSeed || "english_default",
+    );
+    if (!result || !result.selected.length) {
+      if (startBtn) {
+        startBtn.disabled = false;
+        startBtn.textContent = originalText;
+      }
+      alert(
+        "This English exam has no questions configured. Please contact your instructor.",
+      );
+      return;
+    }
+    mcQuestions = result.selected;
+    optionOrders = result.optionOrders;
+    userAnswers = new Array(mcQuestions.length).fill(-1);
+  } else if (mcCount === 0) {
     mcQuestions = [];
     optionOrders = [];
     userAnswers = [];
@@ -768,6 +1015,18 @@ async function startExam() {
     mcQuestions = result.selected;
     optionOrders = result.optionOrders;
     userAnswers = new Array(mcQuestions.length).fill(-1);
+    // Round 3 (July 2026): scoring now reads a per-question `points`
+    // value so fractional and per-section point rules work uniformly.
+    // For non-English exams every question is worth the same amount,
+    // so stamping the flat rate here keeps one code path in the scorer
+    // and leaves the resulting totals identical to before.
+    const flatPts =
+      typeof cfg.pointsPerCorrectMc === "number" && cfg.pointsPerCorrectMc > 0
+        ? cfg.pointsPerCorrectMc
+        : 2;
+    mcQuestions = mcQuestions.map(function (q) {
+      return Object.assign({}, q, { points: flatPts });
+    });
   }
 
   // Build coding problems for this version. The picks dict still has
@@ -939,6 +1198,7 @@ function initExamPage() {
   // tests, 4 coding problems, 100 minutes) regardless of how the
   // instructor configured the exam.
   applyExamConfigToHeader(window._sinovActiveExamConfig);
+  applyEnglishOnlyLanguageLock();
 
   renderQuestions();
   renderCoding();
@@ -981,12 +1241,84 @@ function initExamPage() {
 function renderQuestions() {
   const root = $("questions-root");
   root.innerHTML = "";
+
+  // English-only mode: General English exams render questions in
+  // English with no Uzbek/Russian counterparts, because translating a
+  // language exam would hand over the answers. All other courses keep
+  // the full trilingual treatment.
+  const englishOnly = examIsEnglishOnly();
+  const course = (window._sinovActiveExamConfig || {}).course;
+  const passages = englishOnly
+    ? (window.ENGLISH_PASSAGES || {})[course] || {}
+    : {};
+
+  // Track what we've already emitted so dividers and passage cards
+  // appear exactly once, at the point the content changes.
+  let lastSection = null;
+  let lastPassage = null;
+
   mcQuestions.forEach((q, qIdx) => {
-    const ord = optionOrders[qIdx];
+    const ord = optionOrders[qIdx] || [];
+
+    // ---- Section divider (English exams only) ----
+    if (englishOnly && q.section && q.section !== lastSection) {
+      lastSection = q.section;
+      lastPassage = null; // a new section always re-shows its passage
+      const count = mcQuestions.filter((x) => x.section === q.section).length;
+      const pts = typeof q.points === "number" ? q.points : 0;
+      const divider = document.createElement("div");
+      divider.className = "eng-section-divider";
+      divider.innerHTML = `
+        <div class="esd-title">${escapeHtmlText(englishSectionLabel(q.section))}</div>
+        <div class="esd-meta">${count} question${count === 1 ? "" : "s"} &middot; ${fmtPoints(pts)} point${pts === 1 ? "" : "s"} each</div>
+      `;
+      root.appendChild(divider);
+    }
+
+    // ---- Reading passage card (English exams only) ----
+    if (englishOnly && q.passage && q.passage !== lastPassage) {
+      lastPassage = q.passage;
+      const p = passages[q.passage];
+      if (p) {
+        const card = document.createElement("div");
+        card.className = "eng-passage";
+        const partsHtml = (p.parts || [])
+          .map((part) => {
+            const label = part.label
+              ? `<span class="ep-speaker">${escapeHtmlText(part.label)}</span>`
+              : "";
+            return `<p class="ep-para">${label}${escapeHtmlText(part.text)}</p>`;
+          })
+          .join("");
+        card.innerHTML = `
+          <div class="ep-head">
+            <span class="ep-eyebrow">Reading text</span>
+            <h3 class="ep-title">${escapeHtmlText(p.title || "")}</h3>
+          </div>
+          <div class="ep-body">${partsHtml}</div>
+          <div class="ep-foot">Read the text above, then answer the questions that follow.</div>
+        `;
+        root.appendChild(card);
+      }
+    }
+
+    // ---- Question card ----
     const card = document.createElement("div");
     card.className = "q-card";
-    // For each item we render BOTH the .uz and .ru span; CSS hides one
-    // depending on the body's language class (lang-uz default vs lang-ru).
+
+    // For non-English exams we render BOTH the .uz and .ru span; CSS
+    // hides one depending on the body's language class (lang-uz
+    // default vs lang-ru). For English exams neither is emitted.
+    const translations = englishOnly
+      ? ""
+      : `
+      <div class="q-text-uz uz">${q.uz}</div>
+      <div class="q-text-ru ru">${q.ru || q.uz}</div>`;
+
+    const badgeLabel = englishOnly
+      ? "Question"
+      : `Question<span class="q-badge-label-uz uz">Savol</span><span class="q-badge-label-ru ru">Вопрос</span>`;
+
     card.innerHTML = `
       <div class="q-badge-row">
         <div class="q-badge">
@@ -995,23 +1327,25 @@ function renderQuestions() {
           <span class="q-badge-total">${mcQuestions.length}</span>
         </div>
         <div class="q-badge-label">
-          Question<span class="q-badge-label-uz uz">Savol</span><span class="q-badge-label-ru ru">Вопрос</span>
+          ${badgeLabel}
         </div>
       </div>
-      <div class="q-text">${q.en}</div>
-      <div class="q-text-uz uz">${q.uz}</div>
-      <div class="q-text-ru ru">${q.ru || q.uz}</div>
+      <div class="q-text">${q.en}</div>${translations}
       <div class="opt-list">
         ${ord
           .map((origIdx, displayIdx) => {
             const letter = String.fromCharCode(65 + displayIdx);
             const opt = q.opts[origIdx];
+            if (!opt) return "";
+            const optTranslations = englishOnly
+              ? ""
+              : `
+              <div class="opt-text-uz uz">${escapeOptionText(opt.uz)}</div>
+              <div class="opt-text-ru ru">${escapeOptionText(opt.ru || opt.uz)}</div>`;
             return `<div class="opt" data-q="${qIdx}" data-orig="${origIdx}">
             <span class="letter">${letter})</span>
             <div class="opt-content">
-              <div class="opt-text">${escapeOptionText(opt.en)}</div>
-              <div class="opt-text-uz uz">${escapeOptionText(opt.uz)}</div>
-              <div class="opt-text-ru ru">${escapeOptionText(opt.ru || opt.uz)}</div>
+              <div class="opt-text">${escapeOptionText(opt.en)}</div>${optTranslations}
             </div>
           </div>`;
           })
@@ -1689,14 +2023,32 @@ function updateProgress() {
 // pure-MC exam doesn't show "0 Coding Problems = 0 points" awkwardness,
 // and a pure-coding exam doesn't show "0 Tests × N pts = 0 points").
 function applyExamConfigToHeader(cfg) {
+  // Round 3 (July 2026): General English exams describe their shape
+  // with a `sections` map rather than a flat MC count, and each
+  // section has its own point value.
+  const englishExam = !!(cfg && isEnglishCourse(cfg.course));
+  const engSections = englishExam ? normalizeEnglishSections(cfg.sections) : null;
+  const engTotals = engSections
+    ? ["reading", "grammar", "vocabulary"].reduce(
+        function (acc, key) {
+          acc.count += engSections[key].count;
+          acc.points += engSections[key].count * engSections[key].pointsPerCorrect;
+          return acc;
+        },
+        { count: 0, points: 0 },
+      )
+    : null;
+
   // Normalize the config so the rest of this function can assume
   // sane numbers. Same defaults the Round 2 admin form uses.
-  const mcCount =
-    cfg && typeof cfg.mcCount === "number" && cfg.mcCount >= 0
+  const mcCount = englishExam
+    ? engTotals.count
+    : cfg && typeof cfg.mcCount === "number" && cfg.mcCount >= 0
       ? cfg.mcCount
       : 20;
-  const codingCount =
-    cfg && typeof cfg.codingCount === "number" && cfg.codingCount >= 0
+  const codingCount = englishExam
+    ? 0
+    : cfg && typeof cfg.codingCount === "number" && cfg.codingCount >= 0
       ? cfg.codingCount
       : 4;
   const pointsPerCorrectMc =
@@ -1724,7 +2076,9 @@ function applyExamConfigToHeader(cfg) {
   EXAM_DURATION = cappedMin * 60;
 
   // 2. Build the structure-card row strings.
-  const mcTotalPoints = mcCount * pointsPerCorrectMc;
+  const mcTotalPoints = englishExam
+    ? roundPoints(engTotals.points)
+    : roundPoints(mcCount * pointsPerCorrectMc);
   const codingTotalPoints = codingMaxPoints.reduce(
     (sum, n) => sum + (typeof n === "number" ? n : 0),
     0,
@@ -1741,9 +2095,28 @@ function applyExamConfigToHeader(cfg) {
       const left = document.getElementById("examStructMcLeft");
       const right = document.getElementById("examStructMcRight");
       if (left) {
-        left.textContent = mcCount + " Tests × " + pointsPerCorrectMc + " pts";
+        if (englishExam) {
+          // e.g. "Reading 10×5 + Grammar 10×2.5 + Vocabulary 10×2.5"
+          left.textContent = ["reading", "grammar", "vocabulary"]
+            .filter(function (k) {
+              return engSections[k].count > 0;
+            })
+            .map(function (k) {
+              return (
+                englishSectionLabel(k) +
+                " " +
+                engSections[k].count +
+                "×" +
+                fmtPoints(engSections[k].pointsPerCorrect)
+              );
+            })
+            .join(" + ");
+        } else {
+          left.textContent =
+            mcCount + " Tests × " + fmtPoints(pointsPerCorrectMc) + " pts";
+        }
       }
-      if (right) right.textContent = mcTotalPoints + " points";
+      if (right) right.textContent = fmtPoints(mcTotalPoints) + " points";
     }
   }
 
@@ -1760,16 +2133,32 @@ function applyExamConfigToHeader(cfg) {
         left.textContent =
           codingCount +
           " Coding Problems (" +
-          codingMaxPoints.join(" + ") +
+          codingMaxPoints.map(fmtPoints).join(" + ") +
           ")";
       }
-      if (right) right.textContent = codingTotalPoints + " points";
+      if (right) right.textContent = fmtPoints(codingTotalPoints) + " points";
     }
+  }
+
+  // FIX (July 2026): a zero-coding exam previously still printed the
+  // "PART 02 · Coding Problems" heading and its reassurance banner
+  // above an empty container. Now the whole coding part is removed
+  // from the page — which is what every General English exam needs.
+  const codingHeading = document.getElementById("codingSectionHeading");
+  const codingNote = document.getElementById("codingReassurance");
+  [codingHeading, codingNote].forEach(function (el) {
+    if (el) el.style.display = codingCount === 0 ? "none" : "";
+  });
+  // With no coding part, "PART 01" is the only part — drop the label
+  // so students aren't left looking for a part two.
+  const mcHeadingNum = document.querySelector(".section-heading.s-mc .num");
+  if (mcHeadingNum) {
+    mcHeadingNum.style.display = codingCount === 0 ? "none" : "";
   }
 
   // Total row — always visible.
   const totalRight = document.getElementById("examStructTotalRight");
-  if (totalRight) totalRight.textContent = grandTotal + " points";
+  if (totalRight) totalRight.textContent = fmtPoints(grandTotal) + " points";
 
   // 3. Initial progress text with correct denominator. The live
   //    updater (updateProgress) re-renders this when answers change,
@@ -1826,6 +2215,41 @@ function applyExamConfigToHeader(cfg) {
   }
 }
 
+// ---------------- English-only language lock (Round 3) ----------------
+//
+// General English 1 / 2 assess English itself, so showing an Uzbek or
+// Russian rendering of a question would hand the student the answer.
+// renderQuestions() already emits English-only markup for these exams;
+// this function removes the affordance that implies otherwise.
+//
+// On the exam page the language switcher exists almost entirely to
+// translate questions, so for an English exam we swap the dropdown for
+// a static "English only" pill. Page chrome keeps whatever secondary
+// language the student previously chose — only the questions are
+// pinned.
+//
+// Every other course (Programming 1 with C++ and anything added later)
+// is untouched: the switcher stays fully functional and questions keep
+// their EN/UZ/RU renderings.
+function applyEnglishOnlyLanguageLock() {
+  if (!examIsEnglishOnly()) return;
+
+  document.querySelectorAll(".lang-switcher").forEach(function (wrap) {
+    const sel = wrap.querySelector("select");
+    if (sel) sel.style.display = "none";
+    const label = wrap.querySelector("label");
+    if (label) label.style.display = "none";
+    if (wrap.querySelector(".lang-locked-pill")) return;
+    const pill = document.createElement("span");
+    pill.className = "lang-locked-pill";
+    pill.title =
+      "This is an English language exam, so the questions are shown in English only.";
+    pill.innerHTML =
+      '<span aria-hidden="true">&#127760;</span> Questions in English only';
+    wrap.appendChild(pill);
+  });
+}
+
 // ---------------- Local label maps (Round 2 follow-up) ----------------
 //
 // admin.js owns the canonical EXAM_TYPES / EXAM_COURSES maps, but
@@ -1858,6 +2282,10 @@ function _localCourseLabel(c) {
   switch (c) {
     case "cpp1":
       return "Programming 1 with C++";
+    case "geneng1":
+      return "General English 1";
+    case "geneng2":
+      return "General English 2";
     default:
       return c || "Course";
   }
@@ -2239,22 +2667,84 @@ async function performSubmit(trigger) {
       ? examCfg.penaltyPerWrongMc
       : 0;
 
+  // Round 3 (July 2026): each question carries its own `points` value.
+  // For a normal exam every question is worth pointsPerCorrectMc, so
+  // this reduces exactly to the old `correct × ptsPerCorrect` formula.
+  // For a General English exam the value differs per section (Reading
+  // 5, Grammar 2.5, Vocabulary 2.5), and points may be fractional.
   let correct = 0;
   let wrong = 0;
   let unanswered = 0;
+  let earned = 0;
+  let maxTotal = 0;
+  // Per-section tallies, used for the scorecard/PDF breakdown on
+  // section-structured (English) exams.
+  const sectionTally = {};
+
   userAnswers.forEach((ans, idx) => {
+    const q = mcQuestions[idx] || {};
+    const qPts =
+      typeof q.points === "number" && isFinite(q.points)
+        ? q.points
+        : ptsPerCorrect;
+    maxTotal += qPts;
+
+    const sKey = q.section || "all";
+    if (!sectionTally[sKey]) {
+      sectionTally[sKey] = {
+        section: sKey,
+        count: 0,
+        correct: 0,
+        wrong: 0,
+        unanswered: 0,
+        pointsPerCorrect: qPts,
+        earned: 0,
+        maxPoints: 0,
+      };
+    }
+    const t = sectionTally[sKey];
+    t.count++;
+    t.maxPoints += qPts;
+
     if (ans === -1) {
       unanswered++;
-    } else if (ans === mcQuestions[idx].correct) {
+      t.unanswered++;
+    } else if (ans === q.correct) {
       correct++;
+      earned += qPts;
+      t.correct++;
+      t.earned += qPts;
     } else {
       wrong++;
+      earned -= wrongPenalty;
+      t.wrong++;
+      t.earned -= wrongPenalty;
     }
   });
+
+  // Round before comparing/storing so fractional point values can't
+  // leave floating-point residue in the saved score.
+  Object.keys(sectionTally).forEach(function (k) {
+    const t = sectionTally[k];
+    t.earned = Math.max(0, roundPoints(t.earned));
+    t.maxPoints = roundPoints(t.maxPoints);
+  });
+
   // Floor at 0 — never negative, even with heavy penalties.
-  const rawMcScore = correct * ptsPerCorrect - wrong * wrongPenalty;
+  const rawMcScore = roundPoints(earned);
   const mcScore = Math.max(0, rawMcScore);
-  const mcMaxPoints = mcQuestions.length * ptsPerCorrect;
+  const mcMaxPoints = roundPoints(maxTotal);
+
+  // Section-structured exams score each section at a different rate,
+  // so a single "points per correct" figure would misreport the exam.
+  // The flag lets the scorecard and PDF switch to a per-section legend.
+  const sectionKeys = Object.keys(sectionTally);
+  const isSectioned = sectionKeys.length > 1 || sectionKeys[0] !== "all";
+  const sectionBreakdown = isSectioned
+    ? sectionKeys.map(function (k) {
+        return sectionTally[k];
+      })
+    : null;
 
   // Snapshot the scoring breakdown for the PDF + scorecard display.
   // This data goes into the submission doc so any later regeneration
@@ -2269,6 +2759,19 @@ async function performSubmit(trigger) {
     rawScore: rawMcScore, // can be negative; floored on display
     finalScore: mcScore, // what counts toward the grade
     maxPoints: mcMaxPoints,
+    // Round 3 (July 2026): per-section results for section-structured
+    // exams (General English). null for single-rate exams, which keeps
+    // every legacy consumer on its original code path.
+    sectionBreakdown: sectionBreakdown,
+    // True when questions in this exam are not all worth the same
+    // amount — tells the scorecard/PDF to print a per-section legend
+    // instead of a single "Correct = +N pts" line.
+    mixedPoints: !!(
+      sectionBreakdown &&
+      sectionBreakdown.some(function (s) {
+        return s.pointsPerCorrect !== sectionBreakdown[0].pointsPerCorrect;
+      })
+    ),
   };
 
   // Round 2: coding answers are now dynamic count, not fixed 4.
@@ -3241,6 +3744,8 @@ document.addEventListener("DOMContentLoaded", () => {
           };
           const courseLabels = {
             cpp1: "Programming 1 with C++",
+            geneng1: "General English 1",
+            geneng2: "General English 2",
           };
           enriched.universityLabel =
             uniLabels[enriched.university] || enriched.university;
