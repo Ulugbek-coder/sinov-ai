@@ -10193,3 +10193,212 @@ body.exam-body {
 }
 
 /* end webcam feature per-exam toggle styles */
+
+/* ==============================================================
+   ROUND 3 (July 2026) — General English exams, fractional points
+   and the expanded Submissions filters.
+   ============================================================== */
+
+/* --------------------------------------------------------------
+   Student exam page — section dividers + reading passages
+   -------------------------------------------------------------- */
+
+/* Divider announcing "Reading" / "Grammar" / "Vocabulary" inside the
+   question list. Deliberately lighter than .section-heading so the
+   PART 01 heading still reads as the dominant level. */
+.eng-section-divider {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 34px 0 16px;
+  padding: 12px 16px;
+  background: var(--c1);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.eng-section-divider:first-child {
+  margin-top: 8px;
+}
+.eng-section-divider .esd-title {
+  font-size: 1.12rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+}
+.eng-section-divider .esd-meta {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Reading passage card. Sits above the questions that reference it. */
+.eng-passage {
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--c4);
+  border-radius: var(--radius);
+  padding: 20px 22px 16px;
+  margin: 0 0 22px;
+  box-shadow: var(--shadow-sm);
+}
+.eng-passage .ep-head {
+  margin-bottom: 12px;
+}
+.eng-passage .ep-eyebrow {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--c4);
+  margin-bottom: 4px;
+}
+.eng-passage .ep-title {
+  margin: 0;
+  font-size: 1.18rem;
+  font-weight: 700;
+  color: var(--ink-strong);
+}
+.eng-passage .ep-body {
+  font-size: 0.97rem;
+  line-height: 1.72;
+  color: var(--ink-medium);
+}
+.eng-passage .ep-para {
+  margin: 0 0 12px;
+}
+.eng-passage .ep-para:last-child {
+  margin-bottom: 0;
+}
+/* Speaker name for multi-voice texts ("Petra", "Deepak" …). */
+.eng-passage .ep-speaker {
+  display: block;
+  font-weight: 700;
+  color: var(--ink-strong);
+  margin-bottom: 2px;
+}
+.eng-passage .ep-foot {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+  font-size: 0.82rem;
+  font-style: italic;
+  color: var(--ink-faint);
+}
+
+/* "Questions in English only" pill replacing the language dropdown
+   on General English exams. */
+.lang-locked-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  background: var(--code-light);
+  border: 1px solid var(--c3);
+  color: var(--c1);
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: help;
+}
+
+/* --------------------------------------------------------------
+   Admin — General English section composition grid
+   -------------------------------------------------------------- */
+.sn-eng-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+.sn-eng-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.2fr) 1fr 1fr minmax(72px, auto);
+  gap: 12px;
+  align-items: end;
+  padding: 12px 14px;
+  background: var(--sn-panel);
+  border: 1px solid var(--sn-slate);
+  border-radius: 10px;
+}
+.sn-eng-name {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--sn-ink);
+  padding-bottom: 6px;
+}
+.sn-eng-cap {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--sn-mist-2);
+}
+.sn-eng-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sn-eng-sub {
+  padding-bottom: 8px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--sn-indigo);
+  text-align: right;
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .sn-eng-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .sn-eng-name {
+    grid-column: 1 / -1;
+  }
+  .sn-eng-sub {
+    grid-column: 1 / -1;
+    text-align: left;
+    padding-bottom: 0;
+  }
+}
+
+/* --------------------------------------------------------------
+   Admin — Submissions filter toolbar additions
+   -------------------------------------------------------------- */
+.sn-filter-input {
+  min-width: 160px;
+}
+.sn-input-sm {
+  padding: 7px 10px;
+  font-size: 0.85rem;
+  border-radius: 8px;
+}
+.sn-grade-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sn-grade-val {
+  width: 96px;
+}
+.sn-grade-val:disabled {
+  background: var(--sn-panel-2);
+  color: var(--sn-mist-2);
+  cursor: not-allowed;
+}
+/* Clear-filters button lights up only while a filter is actually set,
+   so a stale filter can't be mistaken for an empty result set. */
+#subClearFilters.is-active {
+  border-color: var(--sn-ember);
+  color: var(--sn-ember);
+  font-weight: 700;
+}
+.sn-filter-summary {
+  margin: 2px 0 12px;
+  font-size: 0.84rem;
+  color: var(--sn-mist);
+  font-style: italic;
+}
