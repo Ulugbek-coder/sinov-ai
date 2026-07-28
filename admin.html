@@ -23,7 +23,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
     <script src="js/firebase-config.js?v=20260602a"></script>
-    <script src="js/firebase-client.js?v=20260714a"></script>
+    <script src="js/firebase-client.js?v=20260728a"></script>
   </head>
   <body class="sn-body sn-admin-body lang-uz">
     <!-- ========================================================== -->
@@ -368,6 +368,76 @@
                 <span class="sn-chev" aria-hidden="true">▾</span>
               </div>
             </div>
+            <div class="sn-admin-filter">
+              <label class="sn-admin-filter-label" for="subStudentId"
+                >Student ID</label
+              >
+              <input
+                type="text"
+                id="subStudentId"
+                class="sn-input sn-input-sm sn-filter-input"
+                placeholder="e.g. 2312345"
+                autocomplete="off"
+              />
+            </div>
+            <div class="sn-admin-filter">
+              <label class="sn-admin-filter-label" for="subName"
+                >Exam Taker's Full Name</label
+              >
+              <input
+                type="text"
+                id="subName"
+                class="sn-input sn-input-sm sn-filter-input"
+                placeholder="e.g. Aziza"
+                autocomplete="off"
+              />
+            </div>
+            <div class="sn-admin-filter">
+              <label class="sn-admin-filter-label">Exam Version</label>
+              <div class="sn-select-wrap sn-select-wrap-sm">
+                <select id="subVersion" class="sn-select sn-select-sm">
+                  <option value="">Any version</option>
+                  <option value="A">Version A</option>
+                  <option value="B">Version B</option>
+                  <option value="C">Version C</option>
+                  <option value="D">Version D</option>
+                </select>
+                <span class="sn-chev" aria-hidden="true">&#9662;</span>
+              </div>
+            </div>
+            <div class="sn-admin-filter">
+              <label class="sn-admin-filter-label">Final Grade</label>
+              <div class="sn-grade-filter">
+                <div class="sn-select-wrap sn-select-wrap-sm">
+                  <select id="subGradeOp" class="sn-select sn-select-sm">
+                    <option value="">Any</option>
+                    <option value="gte">&ge; greater or equal</option>
+                    <option value="gt">&gt; greater than</option>
+                    <option value="lte">&le; less or equal</option>
+                    <option value="lt">&lt; less than</option>
+                    <option value="eq">= equal to</option>
+                  </select>
+                  <span class="sn-chev" aria-hidden="true">&#9662;</span>
+                </div>
+                <input
+                  type="number"
+                  id="subGradeVal"
+                  class="sn-input sn-input-sm sn-grade-val"
+                  step="any"
+                  min="0"
+                  placeholder="points"
+                  disabled
+                />
+              </div>
+            </div>
+            <button
+              id="subClearFilters"
+              class="sn-btn-secondary sn-btn-compact"
+              type="button"
+              title="Reset every submissions filter"
+            >
+              Clear filters
+            </button>
             <button
               id="refreshBtn"
               class="sn-btn-secondary sn-btn-compact"
@@ -377,9 +447,16 @@
             </button>
             <div id="subCountCard" class="sn-sub-count">
               <div class="scc-num" id="subCountNum">—</div>
-              <div class="scc-lbl">Total<br />Submissions</div>
+              <div class="scc-lbl">Shown<br />Submissions</div>
             </div>
           </div>
+
+          <div
+            id="subFilterSummary"
+            class="sn-filter-summary"
+            aria-live="polite"
+            style="display: none"
+          ></div>
 
           <div class="admin-table-wrap scroll">
             <table class="admin-table sub-table">
@@ -537,6 +614,8 @@
                 <select id="efCourse" class="sn-select">
                   <option value="">— Select course —</option>
                   <option value="cpp1">Programming 1 with C++</option>
+                  <option value="geneng1">General English 1</option>
+                  <option value="geneng2">General English 2</option>
                 </select>
                 <span class="sn-chev" aria-hidden="true">▾</span>
               </div>
@@ -665,7 +744,7 @@
           </div>
 
           <div class="sn-form-grid-3">
-            <div class="sn-form-row">
+            <div class="sn-form-row" id="efMcRow">
               <label for="efMc" class="sn-label-sm"
                 >MC Questions <span class="sn-req">*</span></label
               >
@@ -679,7 +758,7 @@
                 value="20"
               />
             </div>
-            <div class="sn-form-row">
+            <div class="sn-form-row" id="efCodingRow">
               <label for="efCoding" class="sn-label-sm"
                 >Coding Problems <span class="sn-req">*</span></label
               >
@@ -736,7 +815,7 @@
               >
             </div>
             <div class="sn-form-grid-3">
-              <div class="sn-form-cell">
+              <div class="sn-form-cell" id="efMcCorrectPtsCell">
                 <label for="efMcCorrectPts" class="sn-label-xs"
                   >Points per correct answer</label
                 >
@@ -744,12 +823,12 @@
                   type="number"
                   id="efMcCorrectPts"
                   class="sn-input"
-                  min="1"
-                  max="10"
-                  step="1"
+                  min="0.01"
+                  max="100"
+                  step="any"
                   value="2"
                 />
-                <div class="sn-hint-xs">Integer 1–10</div>
+                <div class="sn-hint-xs">0.01–100 · decimals allowed (e.g. 2.5)</div>
               </div>
               <div class="sn-form-cell">
                 <label for="efMcWrongPenalty" class="sn-label-xs"
@@ -760,11 +839,11 @@
                   id="efMcWrongPenalty"
                   class="sn-input"
                   min="0"
-                  max="10"
-                  step="1"
+                  max="100"
+                  step="any"
                   value="0"
                 />
-                <div class="sn-hint-xs">Integer 0–10 · 0 = no penalty</div>
+                <div class="sn-hint-xs">0–100 · decimals allowed · 0 = no penalty</div>
               </div>
               <div class="sn-form-cell">
                 <label class="sn-label-xs">Points per unanswered</label>
@@ -809,6 +888,44 @@
             </div>
             <div class="sn-hint">
               Total coding points: <b id="efCodingMaxTotal">60</b>
+            </div>
+          </div>
+
+
+          <!-- ============================================================
+               Section composition — General English only (Round 3, July 2026)
+               Replaces the MC/Coding counts for General English 1 and 2.
+               The instructor sets, per section, how many questions the
+               exam draws and what each correct answer is worth. Points
+               may be fractional (the printed papers use 5 / 2.5 / 2.5).
+               Shown/hidden by admin.js based on the selected course.
+               ============================================================ -->
+          <div class="sn-form-row" id="efEnglishSectionsRow" style="display: none">
+            <div class="sn-subhead">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+              </svg>
+              <span>Section composition</span>
+              <span class="sn-subhead-hint"
+                >Questions drawn from each section, and what each correct
+                answer is worth</span
+              >
+            </div>
+            <div class="sn-eng-grid" id="efEnglishSectionsGrid">
+              <!-- Rows injected by admin.js -->
+            </div>
+            <div class="sn-hint">
+              Total: <b id="efEngTotalQ">0</b> questions &middot;
+              <b id="efEngTotalPts">0</b> points
             </div>
           </div>
 
@@ -1133,8 +1250,9 @@
     </div>
 
     <script src="js/questions/coding-bank.js?v=20260602a"></script>
+    <script src="js/questions/english-bank.js?v=20260728a"></script>
     <script src="js/proctoring-admin.js?v=20260714a"></script>
     <script src="js/header-scroll.js?v=20260521u"></script>
-    <script src="js/admin.js?v=20260714a"></script>
+    <script src="js/admin.js?v=20260728a"></script>
   </body>
 </html>

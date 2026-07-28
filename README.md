@@ -21,11 +21,15 @@ Sinov AI is a production-ready exam platform with four AI-powered features layer
 **Foundation features** (the production C++ exam system)
 
 - Trilingual UI (EN / UZ / RU) — every label, every error, every PDF.
+- **Multi-course**: Programming 1 with C++, General English 1, and General English 2. Each course brings its own question banks and its own exam shape.
 - Configurable exam structure: any number of MC questions, any number of coding problems, any duration, any scoring rule.
+- **Section-structured exams** for General English — the instructor sets how many questions come from Reading, Grammar and Vocabulary, and what each section is worth.
+- **Fractional points** — points per correct answer, penalties and coding maxima all accept decimals (2.5, 3.2, 0.75 …), so a paper marked "2.5 points each" digitises exactly.
 - Real C++ execution via [Judge0](https://judge0.com/) (self-hosted) — students see actual compile + run output.
 - Three-stage Firebase upload retry with Google Form fallback if all three fail.
 - Tab-switch / window-blur anti-cheat with structured event logging.
 - Multi-instructor admin dashboard with PDF download, live submission view, and AI-graded score override.
+- **Submission filtering** by group, upload method, student ID, exam taker's full name, exam version, and final grade (greater/less than, or equal to a threshold).
 - Trilingual PDF reports — every submission archived with proctoring summary, AI grades, and code with edit-highlighting.
 
 ---
@@ -72,8 +76,65 @@ No framework, no build step. The entire frontend is hand-written HTML / CSS / va
 | `js/ai-feedback.js` | Client-side trilingual feedback renderer + Gemini call |
 | `js/proctoring.js` | MediaPipe + webcam frame capture + Gemini escalation |
 | `js/pdf-generator.js` | Trilingual PDF report (returns Blob + save fn) |
+| `js/questions/question-bank.js` | C++ MC bank (trilingual) |
+| `js/questions/coding-bank.js` | C++ coding-problem bank (trilingual) |
+| `js/questions/english-bank.js` | General English 1 & 2 banks + reading passages (English-only) |
 | `firestore.rules` | Firestore security rules |
 | `storage.rules` | Firebase Storage security rules |
+
+
+## Courses
+
+| Course | Code | Structure | Question source |
+| --- | --- | --- | --- |
+| Programming 1 with C++ | `cpp1` | N multiple-choice + M coding problems | `question-bank.js`, `question-bank-new.js`, `coding-bank.js` |
+| General English 1 | `geneng1` | Reading + Grammar + Vocabulary sections, no coding | `english-bank.js` |
+| General English 2 | `geneng2` | Reading + Grammar + Vocabulary sections, no coding | `english-bank.js` |
+
+### General English exams
+
+Both English courses hold **60 questions each** — 20 Reading (across two
+passages), 20 Grammar, 20 Vocabulary — transcribed from the printed
+Version A / Version B papers together with their answer keys.
+
+When creating an English exam the instructor configures **each section
+separately**: how many questions to draw, and how many points a correct
+answer is worth. The form caps each count at what the bank actually
+contains, so an exam can never demand more questions than exist. The
+defaults reproduce the printed paper exactly:
+
+| Section | Questions | Points each | Subtotal |
+| --- | --- | --- | --- |
+| Reading | 10 | 5 | 50 |
+| Grammar | 10 | 2.5 | 25 |
+| Vocabulary | 10 | 2.5 | 25 |
+| **Total** | **30** | | **100** |
+
+Reading questions are bound to their passage. The selector shuffles
+whole passages and draws from them in order, so a 10-question reading
+section uses **one** text rather than scattering questions across two —
+students read one passage and answer its questions, exactly as on paper.
+
+Question formats vary by section and are rendered accordingly:
+4-option grammar items, 3-option reading and vocabulary items, and
+2-option True/False items. True/False options keep their printed
+`True, False` order; everything else is shuffled with the same balanced
+answer-position algorithm the C++ exams use.
+
+**Questions are English-only.** Translating a language exam would hand
+the student the answer, so General English questions render in English
+with no Uzbek or Russian counterpart, and the exam-page language
+switcher is replaced by an "English only" indicator. This applies *only*
+to the two English courses — Programming 1 with C++ keeps its full
+EN / UZ / RU translation of every question, option, hint and PDF line.
+
+### Fractional points
+
+Points per correct answer, wrong-answer penalties and per-problem coding
+maxima all accept decimal values. Scores are rounded to two decimal
+places at every aggregation step so accumulating values like 2.5 across
+thirty questions can't surface floating-point artefacts, and whole
+numbers still display as whole numbers (`40`, not `40.00`).
 
 ## Setup
 
@@ -118,7 +179,7 @@ From MVP to platform — what's next for Sinov AI, organized by time horizon:
 
 **Long-term**
 
-- Multi-subject expansion — Discrete Math, Calculus 2, Analytic Geometry, Mathematical Analysis 1 & 2, General & Academic English.
+- Multi-subject expansion — Discrete Math, Calculus 2, Analytic Geometry, Mathematical Analysis 1 & 2, and Academic English. (General English 1 & 2 shipped in July 2026.)
 - Deep LMS integration with Moodle and Canvas, the systems Uzbek and regional universities already use.
 
 ## Team
