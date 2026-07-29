@@ -10669,3 +10669,36 @@ body.exam-body {
   text-transform: uppercase;
   white-space: nowrap;
 }
+
+/* Orphaned-recording scan results. */
+.sn-orphan-list {
+  max-height: 260px;
+  overflow-y: auto;
+  margin-top: 12px;
+}
+.sn-orphan-list:empty {
+  display: none;
+}
+.sn-orphan-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--sn-slate);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  background: var(--sn-panel);
+  font-size: 0.84rem;
+}
+.sn-orphan-id {
+  font-family: var(--sn-mono);
+  font-size: 0.78rem;
+  color: var(--sn-ink);
+  word-break: break-all;
+}
+.sn-orphan-meta {
+  color: var(--sn-mist-2);
+  white-space: nowrap;
+  font-size: 0.78rem;
+}
