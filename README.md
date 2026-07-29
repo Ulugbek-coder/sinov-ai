@@ -79,11 +79,33 @@ No framework, no build step. The entire frontend is hand-written HTML / CSS / va
 | `js/questions/question-bank.js` | C++ MC bank (trilingual) |
 | `js/questions/coding-bank.js` | C++ coding-problem bank (trilingual) |
 | `js/questions/english-bank.js` | General English 1 & 2 banks + reading passages (English-only) |
+| `js/courses.js` | **Course registry** — single source of truth for every subject |
 | `firestore.rules` | Firestore security rules |
 | `storage.rules` | Firebase Storage security rules |
 
 
 ## Courses
+
+Every subject is declared in **`js/courses.js`**. That one file drives the
+student course dropdown, the instructor's exam form, the analytics
+labels, the PDF header, the welcome-page format banner and the
+refresh-questions confirmation. Adding a subject is a single entry:
+
+```js
+{ id: "calc1", label: "Calculus 1", structure: "mc_only", translateQuestions: true },
+```
+
+Three structures are supported:
+
+| `structure` | Meaning | Exam form shows |
+| --- | --- | --- |
+| `mc_coding` | Multiple choice + coding problems | MC count, coding count, per-problem max points |
+| `mc_only` | Multiple choice only | MC count only — coding inputs hidden |
+| `sectioned` | Named sections, each with its own count and points | Per-section composition grid |
+
+Entries for Calculus 1, Calculus 2, Mathematical Analysis 1 & 2 and
+Analytical Geometry are pre-written and commented out in `courses.js` —
+uncomment one and add its question bank to enable it.
 
 | Course | Code | Structure | Question source |
 | --- | --- | --- | --- |
@@ -120,6 +142,13 @@ Question formats vary by section and are rendered accordingly:
 2-option True/False items. True/False options keep their printed
 `True, False` order; everything else is shuffled with the same balanced
 answer-position algorithm the C++ exams use.
+
+One item was repaired during transcription: General English 2 ·
+Version A · Vocabulary Q29 was unanswerable as printed (no option fitted
+the sentence), so its stem was rewritten to match the word its answer
+key identifies. Options and answer letter are unchanged. The deviation
+is documented in the header of `english-bank.js`; everything else
+matches the source papers exactly.
 
 **Questions are English-only.** Translating a language exam would hand
 the student the answer, so General English questions render in English

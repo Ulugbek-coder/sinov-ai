@@ -382,7 +382,7 @@
               <span class="sn-label-ru ru">· Курс / Модуль</span>
             </label>
             <div class="sn-select-wrap">
-              <select id="courseSelect" class="sn-select" disabled>
+              <select id="courseSelect" class="sn-select" data-sn-course-select disabled>
                 <option value="">— Select your course —</option>
                 <option value="cpp1">Programming 1 with C++</option>
                 <option value="geneng1">General English 1</option>
@@ -420,7 +420,7 @@
             <div class="sn-format-row">
               <div class="sn-format-item">
                 <div class="sn-format-num" id="snFormatMc">20</div>
-                <div class="sn-format-label">
+                <div class="sn-format-label" id="snFormatMcLabel">
                   Multiple Choice
                   <span class="sn-fl-second uz">Testlar</span>
                   <span class="sn-fl-second ru">Тесты</span>
@@ -429,7 +429,7 @@
               <div class="sn-format-divider" aria-hidden="true"></div>
               <div class="sn-format-item">
                 <div class="sn-format-num" id="snFormatCode">4</div>
-                <div class="sn-format-label">
+                <div class="sn-format-label" id="snFormatCodeLabel">
                   Coding Problems
                   <span class="sn-fl-second uz">Kodlash masalalari</span>
                   <span class="sn-fl-second ru">Задачи</span>
@@ -778,7 +778,8 @@
 
     <!-- Load scripts -->
     <script src="js/questions/question-bank.js?v=20260602a"></script>
-    <script src="js/questions/english-bank.js?v=20260728a"></script>
+    <script src="js/courses.js?v=20260729a"></script>
+    <script src="js/questions/english-bank.js?v=20260729a"></script>
     <script src="js/questions/question-bank-new.js?v=20260602a"></script>
     <script src="js/questions/coding-bank.js?v=20260602a"></script>
     <script src="js/questions/version-a.js?v=20260602a"></script>
@@ -786,7 +787,7 @@
     <script src="js/proctoring.js?v=20260523c"></script>
     <script src="js/verification-photo.js?v=20260521s"></script>
     <script src="js/header-scroll.js?v=20260521u"></script>
-    <script src="js/app.js?v=20260728a"></script>
+    <script src="js/app.js?v=20260729a"></script>
 
     <!-- ==============================================================
          Live session counter — populates the "N sessions completed so far"
