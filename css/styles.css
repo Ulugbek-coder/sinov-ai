@@ -10402,3 +10402,159 @@ body.exam-body {
   color: var(--sn-mist);
   font-style: italic;
 }
+
+/* ==============================================================
+   ROUND 5 (July 2026) — bulk scheduling + bulk PDF download
+   ============================================================== */
+
+/* Narrower dialog for the small ZIP-name modal. */
+.sn-exam-modal-dialog.sn-modal-narrow {
+  max-width: 540px;
+}
+
+/* Inline text button used inside subheads ("Select all · Clear"). */
+.sn-linkbtn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--sn-indigo);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.sn-linkbtn:hover {
+  color: var(--sn-ink);
+}
+
+/* --- Group picker --- */
+.sn-group-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.sn-group-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border: 1px solid var(--sn-slate);
+  border-radius: 8px;
+  background: var(--sn-panel);
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--sn-ink);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.sn-group-chip:hover {
+  border-color: var(--sn-indigo);
+}
+.sn-group-chip:has(input:checked) {
+  border-color: var(--sn-indigo);
+  background: var(--sn-indigo-tint, #eef2ff);
+}
+.sn-group-chip input {
+  margin: 0;
+  cursor: pointer;
+}
+
+/* --- Access radios --- */
+.sn-radio-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 2px;
+  font-size: 0.9rem;
+  color: var(--sn-ink);
+  cursor: pointer;
+}
+.sn-radio-row input {
+  margin-top: 2px;
+  cursor: pointer;
+}
+
+/* --- Allow-list --- */
+.sn-allow-add {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.sn-allow-add .sn-input {
+  flex: 1;
+}
+.sn-allow-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  min-height: 24px;
+}
+.sn-allow-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px 5px 11px;
+  border-radius: 999px;
+  background: var(--sn-panel-2, #eef1f6);
+  border: 1px solid var(--sn-slate);
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--sn-ink);
+}
+.sn-allow-x {
+  background: none;
+  border: 0;
+  padding: 0 2px;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--sn-mist-2);
+  cursor: pointer;
+}
+.sn-allow-x:hover {
+  color: var(--sn-ember);
+}
+
+/* --- ZIP name field --- */
+.sn-zip-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sn-zip-name .sn-input {
+  flex: 1;
+}
+.sn-zip-ext {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--sn-mist-2);
+}
+
+/* --- Download progress --- */
+.sn-progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--sn-panel-2, #eef1f6);
+  overflow: hidden;
+  margin-top: 10px;
+}
+.sn-progress-bar {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: var(--sn-indigo);
+  transition: width 0.2s ease;
+}
+
+/* Restriction badge in the schedule table (allow-listed exams). */
+.sn-status-badge.restricted {
+  background: #fff4e5;
+  border: 1px solid #f0b775;
+  color: #9a5b12;
+  margin-left: 6px;
+  cursor: help;
+}
