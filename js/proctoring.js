@@ -629,6 +629,11 @@
         sessionId: state.sessionId,
         group: state.group,
         studentId: state.studentId,
+        // Round 6: which exam this evidence belongs to. Optional in the
+        // Firestore rules (they use hasAll on the required keys, so
+        // extra fields are permitted) — no rules change needed.
+        examId: state.examId || null,
+        course: state.course || null,
         type: evt.type,
         // Use server timestamp for trustworthy ordering
         at: firebase.firestore.FieldValue.serverTimestamp(),
@@ -1516,6 +1521,10 @@
     state.sessionId = (ctx && ctx.sessionId) || uuid();
     state.group = (ctx && ctx.group) || null;
     state.studentId = (ctx && ctx.studentId) || null;
+    // Exam identity — stamped onto every event so evidence can be
+    // queried, audited and cleaned up per exam.
+    state.examId = (ctx && ctx.examId) || null;
+    state.course = (ctx && ctx.course) || null;
 
     // 1. Create the preview UI
     createPreview();

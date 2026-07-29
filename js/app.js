@@ -1346,6 +1346,14 @@ function initExamPage() {
     // pages), Proctoring.start() will log a 'camera_lost' event so the
     // instructor still sees the submission was un-proctored.
     window.Proctoring.start({
+      // Round 6 (July 2026): tag the session with the exam it belongs
+      // to. Without this, proctoring evidence is only reachable by
+      // walking back from a submission's proctorSessionId — so a
+      // session with no submission (abandoned exam, browser crash) is
+      // unfindable, and "show all events for exam X" needs a two-step
+      // query with chunked `in` clauses.
+      examId: snActiveExamId(),
+      course: (window._sinovActiveExamConfig || {}).course || null,
       sessionId: window._proctorSessionId,
       group: studentInfo.group,
       studentId: studentInfo.id,
@@ -3011,6 +3019,9 @@ async function performSubmit(trigger) {
     // generator. Without this, ai-feedback.js had no way to know which
     // subject the exam was for and every student received C++ advice.
     course: (window._sinovActiveExamConfig || {}).course || null,
+    // Round 6 (July 2026): the Storage path is now scoped by subject
+    // and exam, so the uploader needs both.
+    examType: (window._sinovActiveExamConfig || {}).examType || null,
     courseLabel:
       (window._sinovActiveExamConfig || {}).courseLabel ||
       _localCourseLabel((window._sinovActiveExamConfig || {}).course),

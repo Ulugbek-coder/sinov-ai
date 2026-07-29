@@ -1924,6 +1924,10 @@
   function _rowPdfRef(r) {
     if (!r) return null;
     if (r.pdfUrl) return { url: r.pdfUrl };
+    // pdfPath is written by the uploader and is authoritative — it is
+    // the ONLY reliable source now that paths embed subject, exam and
+    // date. The reconstruction below is a legacy fallback for records
+    // predating pdfPath and only ever produces the old flat layout.
     if (r.pdfPath) return { path: r.pdfPath };
     const group = (r.group || "").trim();
     const id = (r.studentId || "").trim();
@@ -3935,6 +3939,13 @@
   // Reconstruct the Storage path for a row when the Firestore record
   // doesn't have pdfPath stored (old records from the pre-fix era).
   // The filename convention is: {group}_{id}_{first}_{last}.pdf
+  // LEGACY ONLY (pre-July 2026 records).
+  //
+  // Rebuilds the OLD flat path submissions/{group}/{file} from the
+  // rendered table row. It cannot reconstruct the current layout —
+  // subject, exam type and date are not all present in the row, and
+  // the filename now carries a submission timestamp. Callers must try
+  // the stored pdfPath first and only fall back here.
   function reconstructPdfPath(rowEl) {
     if (!rowEl) return null;
     // Cell order: Submitted, Group, ID, Name, Version, Test Points, Tabs, Violated, Time, Method, PDF, Delete

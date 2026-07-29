@@ -127,6 +127,73 @@ async function uploadSubmission(submissionData, pdfBlob, onProgress) {
     trigger === "auto" ? "firebase_auto" : "firebase_manual";
 
   const safe = (s) => (s || "").replace(/[^a-zA-Z0-9]/g, "");
+
+  // ---------------------------------------------------------------
+  // Storage path  (Round 6 — July 2026)
+  // ---------------------------------------------------------------
+  // CRITICAL BUG FIX. The path used to be:
+  //
+  //     submissions/{group}/{GROUP}_{ID}_{First}_{Last}.pdf
+  //
+  // which contains NO subject, NO exam and NO date. Every exam a
+  // student ever sat therefore resolved to the SAME object. A student
+  // taking General English 1 and then Programming 1 had both reports
+  // written to one path, so at most one survived — and because the
+  // earlier Firestore record still stored that same pdfPath/pdfUrl,
+  // opening the older submission served the NEWER exam's PDF. The
+  // dashboard looked like it was mixing subjects because, at the file
+  // level, it genuinely was.
+  //
+  // The new layout scopes every report by subject → exam → group →
+  // date, and the filename carries the version and a time stamp:
+  //
+  //     submissions/{course}/{examType}/{group}/{YYYY-MM-DD}/
+  //         {GROUP}_{ID}_{First}_{Last}_v{Version}_{HHmmss}.pdf
+  //
+  // Why each level is needed:
+  //   course    — a student sits several subjects
+  //   examType  — and several exams per subject (Midterm, Final,
+  //               Resit, Retake 1, Retake 2 …)
+  //   group     — matches the Storage rules' group allow-list, and is
+  //               how staff browse the bucket
+  //   date      — separates the same exam type across academic years,
+  //               and makes an exam sitting easy to locate
+  //   HHmmss    — guarantees a resubmission can never overwrite an
+  //               earlier attempt. Storage rules set `allow update:
+  //               false`, so a colliding path would have been REJECTED
+  //               outright rather than silently replaced.
+  //
+  // Existing submissions are unaffected: their pdfPath/pdfUrl are
+  // already stored in Firestore and keep resolving to the old layout,
+  // which storage.rules still permits reading and deleting.
+  // ---------------------------------------------------------------
+
+  // Lowercase hyphenated slug, safe as a single Storage path segment.
+  const slug = (s, fallback) => {
+    const out = String(s || "")
+      .trim()
+      .replace(/[^a-zA-Z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase()
+      .slice(0, 60);
+    return out || fallback;
+  };
+
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const examDate =
+    now.getFullYear() +
+    "-" +
+    pad(now.getMonth() + 1) +
+    "-" +
+    pad(now.getDate());
+  const stamp =
+    pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds());
+
+  const courseSeg = slug(submissionData.course, "unknown-course");
+  const examSeg = slug(submissionData.examType, "unknown-exam");
+  const versionSeg = safe(submissionData.version) || "X";
+
   const filename =
     safe(group) +
     "_" +
@@ -135,8 +202,23 @@ async function uploadSubmission(submissionData, pdfBlob, onProgress) {
     safe(first) +
     "_" +
     safe(last) +
+    "_v" +
+    versionSeg +
+    "_" +
+    stamp +
     ".pdf";
-  const storagePath = "submissions/" + group + "/" + filename;
+
+  const storagePath =
+    "submissions/" +
+    courseSeg +
+    "/" +
+    examSeg +
+    "/" +
+    group +
+    "/" +
+    examDate +
+    "/" +
+    filename;
 
   const report = (phase, attempt, extra) => {
     if (typeof onProgress === "function")
