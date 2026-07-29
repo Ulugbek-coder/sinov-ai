@@ -10602,3 +10602,82 @@ body.exam-body {
   cursor: not-allowed;
   box-shadow: none;
 }
+
+/* ==============================================================
+   Selected exam card — stronger visual state (July 2026)
+   --------------------------------------------------------------
+   The previous rule tinted the card with --sn-indigo-faint (#eff6ff)
+   and faded it to white by 60%, which on most monitors was almost
+   indistinguishable from an unselected card. Since every section
+   below the grid (Refresh, Schedule, Submissions) is scoped to the
+   selected exam, "which card is active?" has to be answerable at a
+   glance — getting it wrong means scheduling or refreshing the wrong
+   exam. These rules come after the originals so they win on cascade
+   order without needing !important.
+   ============================================================== */
+.sn-exam-card.selected {
+  border-color: var(--sn-indigo);
+  /* Solid tint across the whole card rather than a fade-to-white. */
+  background: var(--sn-indigo-tint);
+  box-shadow:
+    0 0 0 3px rgba(37, 99, 235, 0.28),
+    0 6px 18px rgba(37, 99, 235, 0.16);
+  transform: translateY(-1px);
+}
+
+/* Left accent bar — readable even for users who can't distinguish the
+   blue tint from white, so selection isn't conveyed by colour alone. */
+.sn-exam-card.selected::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  border-radius: var(--sn-radius-lg) 0 0 var(--sn-radius-lg);
+  background: var(--sn-indigo);
+}
+
+.sn-exam-card.selected .sn-exam-card-title {
+  color: var(--sn-indigo-dark);
+}
+
+/* Inner stat tiles go white so they stay crisp against the blue —
+   --sn-panel is a pale grey that muddies on a tinted background. */
+.sn-exam-card.selected .sn-exam-stat {
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+/* Hovering the already-selected card shouldn't wash the tint away. */
+.sn-exam-card.selected:hover {
+  border-color: var(--sn-indigo-dark);
+  background: var(--sn-indigo-tint);
+}
+
+/* An inactive exam is dimmed to 0.7 opacity. Selected + inactive must
+   still read as selected, so restore most of the contrast. */
+.sn-exam-card.inactive.selected {
+  opacity: 0.92;
+}
+
+/* "SELECTED" chip.
+   Rendered into the existing .sn-exam-badges row by admin.js rather
+   than as an absolutely-positioned pseudo-element: the card's top-right
+   corner already holds the "⋮" actions menu, and a floating badge would
+   sit on top of it. Living in the badge row also means it reflows
+   correctly on narrow screens. */
+.sn-exam-selected-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--sn-indigo);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
