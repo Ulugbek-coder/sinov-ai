@@ -83,7 +83,7 @@ No framework, no build step. The entire frontend is hand-written HTML / CSS / va
 | `js/questions/question-bank.js` | C++ MC bank (trilingual) |
 | `js/questions/coding-bank.js` | C++ coding-problem bank (trilingual) |
 | `js/questions/english-bank.js` | General English 1 & 2 banks + reading passages (English-only) |
-| `js/questions/math-bank.js` | Calculus 1/2 and Analytical Geometry banks (trilingual) |
+| `js/questions/math-bank.js` | Calculus 1/2, Analytical Geometry and Discrete Mathematics banks (trilingual) |
 | `js/courses.js` | **Course registry** — single source of truth for every subject |
 | `firestore.rules` | Firestore security rules |
 | `storage.rules` | Firebase Storage security rules |
@@ -122,6 +122,7 @@ uncomment one and add its question bank to enable it.
 | Calculus 2 | `calc2` | Multiple choice only | `math-bank.js` → `calculus2` |
 | Mathematical Analysis 2 | `mathan2` | Multiple choice only | `math-bank.js` → `calculus2` *(shared)* |
 | Analytical Geometry | `anageo` | Multiple choice only | `math-bank.js` → `analytic_geometry` |
+| Discrete Mathematics | `discmath` | Multiple choice only | `math-bank.js` → `discrete_math` |
 
 Programming 1 accepts **0 coding problems**, making it a multiple-choice-only
 exam, or any number up to 20 alongside the test questions.
@@ -218,6 +219,36 @@ earlier attempt.
 `storage.rules` keeps a rule for the legacy flat layout so reports
 uploaded before the change stay readable and deletable; their
 `pdfPath` is recorded in Firestore and still resolves.
+
+### Proctoring evidence
+
+Webcam frames are stored at:
+
+```
+proctoring/{sessionId}/{scheduled|anomaly}/{timestamp}_{random}.jpg
+```
+
+where `sessionId` is `p_{group}_{studentId}_{epochMs}`. The millisecond
+stamp makes every exam sitting a distinct folder, and the per-frame
+timestamp plus random suffix makes every frame distinct — so unlike the
+old submission layout, proctoring has never overwritten anything.
+
+Events in `/proctoring_events` are stamped with `examId` and `course`
+(July 2026) so evidence can be located per exam without walking back
+from a submission's `proctorSessionId`. Sessions that never produced a
+submission — abandoned exams, browser crashes — were previously
+unreachable for this reason.
+
+Deleting a submission cascades: its Firestore record, its PDF, and the
+webcam frames and proctoring events for its session are all removed.
+
+Sessions that never produced a submission are found and removed with
+**Clean up orphaned recordings** in the Submissions toolbar. It only
+offers sessions older than a chosen threshold (default 7 days), because
+a session with no submission may simply be an exam still in progress —
+session ids embed their start time, so age is read from the folder name.
+Sessions whose id cannot be parsed are listed as skipped and never
+auto-deleted.
 
 ## Security notes
 

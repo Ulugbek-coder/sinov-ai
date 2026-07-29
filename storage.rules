@@ -92,6 +92,30 @@ service firebase.storage {
     //   DELETE: instructors only.
     //   UPDATE: never.
     // -------------------------------------------------------------
+    // -------------------------------------------------------------
+    // /proctoring/{anything}
+    //   Instructor-only READ (which also authorises list/listAll) and
+    //   DELETE, at any depth.
+    //
+    //   Needed for cascade deletion and the orphan-cleanup tool: both
+    //   enumerate session folders with listAll(), and a list operation
+    //   is authorised against the PREFIX being listed. The narrower
+    //   three-segment rule below only matches individual objects, so
+    //   listing "proctoring/" or "proctoring/{sessionId}/" was denied.
+    //
+    //   Students never match this rule — they are anonymous, and their
+    //   upload permission comes from the create rule underneath.
+    // -------------------------------------------------------------
+    match /proctoring/{allPaths=**} {
+      allow read: if
+        request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'password';
+
+      allow delete: if
+        request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'password';
+    }
+
     match /proctoring/{sessionId}/{kind}/{fileName} {
       allow create: if
         request.auth != null

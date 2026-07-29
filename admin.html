@@ -458,6 +458,14 @@
               ⬇ Download all PDFs
             </button>
             <button
+              id="orphanCleanupBtn"
+              class="sn-btn-secondary sn-btn-compact"
+              type="button"
+              title="Find proctoring recordings with no matching submission"
+            >
+              🧹 Clean up orphaned recordings
+            </button>
+            <button
               id="bulkXlsxBtn"
               class="sn-btn-excel sn-btn-compact"
               type="button"
@@ -1334,6 +1342,93 @@
       </div>
     </div>
 
+    <!-- ====== Orphaned Proctoring Cleanup (July 2026) ====== -->
+    <div
+      id="orphanModal"
+      class="sn-exam-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="orphanTitle"
+      style="display: none"
+    >
+      <div class="sn-exam-modal-backdrop"></div>
+      <div class="sn-exam-modal-dialog" role="document">
+        <div class="sn-exam-modal-head">
+          <h3 id="orphanTitle" class="sn-exam-modal-title">
+            Clean up orphaned proctoring recordings
+          </h3>
+          <button
+            type="button"
+            id="orphanClose"
+            class="sn-exam-modal-close"
+            aria-label="Close"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            >
+              <path d="M6 6l12 12M6 18L18 6" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="sn-exam-modal-body">
+          <p class="sn-admin-section-sub">
+            Webcam recordings are kept per exam session. A session that
+            never produced a submission — an abandoned exam, a browser
+            crash, a closed laptop — leaves frames in Storage that nothing
+            points to. This finds them.
+          </p>
+
+          <div class="sn-form-row">
+            <label for="orphanAge" class="sn-label-sm">Only sessions older than</label>
+            <div class="sn-select-wrap">
+              <select id="orphanAge" class="sn-select">
+                <option value="24">24 hours</option>
+                <option value="72">3 days</option>
+                <option value="168" selected>7 days</option>
+                <option value="720">30 days</option>
+              </select>
+              <span class="sn-chev" aria-hidden="true">&#9662;</span>
+            </div>
+            <div class="sn-hint-xs">
+              Protects exams in progress. A session started minutes ago has
+              no submission yet simply because the student is still working.
+            </div>
+          </div>
+
+          <button
+            type="button"
+            id="orphanScan"
+            class="sn-btn-secondary sn-btn-compact"
+          >
+            Scan for orphans
+          </button>
+
+          <div id="orphanProgress" class="sn-admin-msg" aria-live="polite"></div>
+          <div class="sn-orphan-list" id="orphanList"></div>
+          <div id="orphanError" class="sn-login-error" style="display: none"></div>
+        </div>
+
+        <div class="sn-exam-modal-foot">
+          <button type="button" id="orphanCancel" class="sn-btn-secondary">
+            Close
+          </button>
+          <button
+            type="button"
+            id="orphanDelete"
+            class="sn-btn-danger sn-btn-compact"
+            disabled
+          >
+            <span class="sn-btn-text">Delete orphaned recordings</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- ====== AI Grading Drawer (Feature 6) ====== -->
     <!-- Slides in from the right when an instructor opens a submission
          for grading. Shows the 4 coding problems side-by-side with the
@@ -1601,6 +1696,6 @@
     <script src="js/questions/math-bank.js?v=20260729a"></script>
     <script src="js/proctoring-admin.js?v=20260714a"></script>
     <script src="js/header-scroll.js?v=20260521u"></script>
-    <script src="js/admin.js?v=20260729d"></script>
+    <script src="js/admin.js?v=20260729e"></script>
   </body>
 </html>
