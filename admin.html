@@ -461,6 +461,14 @@
             >
               ⬇ Download all PDFs
             </button>
+            <button
+              id="bulkXlsxBtn"
+              class="sn-btn-secondary sn-btn-compact"
+              type="button"
+              title="Export the listed submissions as an Excel spreadsheet"
+            >
+              ⬇ Export to Excel
+            </button>
             <div id="subCountCard" class="sn-sub-count">
               <div class="scc-num" id="subCountNum">—</div>
               <div class="scc-lbl">Shown<br />Submissions</div>
@@ -1131,9 +1139,8 @@
                   type="text"
                   id="bsAllowedInput"
                   class="sn-input"
-                  inputmode="numeric"
-                  maxlength="12"
-                  placeholder="Type a student ID, e.g. 250239"
+                  maxlength="400"
+                  placeholder="Type or paste IDs, e.g. 250211, 250312, 250455"
                   autocomplete="off"
                 />
                 <button
@@ -1250,6 +1257,82 @@
             class="sn-btn-primary sn-btn-compact"
           >
             <span class="sn-btn-text">Download ZIP</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== Excel Export Modal (July 2026) ====== -->
+    <div
+      id="bulkXlsxModal"
+      class="sn-exam-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="bulkXlsxTitle"
+      style="display: none"
+    >
+      <div class="sn-exam-modal-backdrop"></div>
+      <div class="sn-exam-modal-dialog sn-modal-narrow" role="document">
+        <div class="sn-exam-modal-head">
+          <h3 id="bulkXlsxTitle" class="sn-exam-modal-title">
+            Export submissions to Excel
+          </h3>
+          <button
+            type="button"
+            id="bulkXlsxClose"
+            class="sn-exam-modal-close"
+            aria-label="Close"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            >
+              <path d="M6 6l12 12M6 18L18 6" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="sn-exam-modal-body">
+          <p class="sn-admin-section-sub" id="bxScope"></p>
+
+          <div class="sn-form-row">
+            <label for="bxName" class="sn-label-sm"
+              >File name <span class="sn-req">*</span></label
+            >
+            <div class="sn-zip-name">
+              <input
+                type="text"
+                id="bxName"
+                class="sn-input"
+                maxlength="80"
+                autocomplete="off"
+                placeholder="e.g. General English 1 — Retake 2 results"
+              />
+              <span class="sn-zip-ext">.xlsx</span>
+            </div>
+            <div class="sn-hint-xs">
+              Characters that aren't allowed in file names will be replaced
+              with "-".
+            </div>
+          </div>
+
+          <div id="bxError" class="sn-login-error" style="display: none"></div>
+          <div id="bxProgress" class="sn-admin-msg" aria-live="polite"></div>
+        </div>
+
+        <div class="sn-exam-modal-foot">
+          <button type="button" id="bxCancel" class="sn-btn-secondary">
+            Cancel
+          </button>
+          <button
+            type="button"
+            id="bxStart"
+            class="sn-btn-primary sn-btn-compact"
+          >
+            <span class="sn-btn-text">Download Excel</span>
           </button>
         </div>
       </div>
@@ -1516,11 +1599,12 @@
 
     <script src="js/questions/coding-bank.js?v=20260602a"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="js/courses.js?v=20260729a"></script>
     <script src="js/questions/english-bank.js?v=20260729a"></script>
     <script src="js/questions/math-bank.js?v=20260729a"></script>
     <script src="js/proctoring-admin.js?v=20260714a"></script>
     <script src="js/header-scroll.js?v=20260521u"></script>
-    <script src="js/admin.js?v=20260729b"></script>
+    <script src="js/admin.js?v=20260729c"></script>
   </body>
 </html>
