@@ -291,6 +291,16 @@
     const bpStart = $("bpStart");
     if (bpStart) bpStart.addEventListener("click", runBulkPdfDownload);
 
+    // ---- Excel export (July 2026) ----
+    const bulkXlsxBtn = $("bulkXlsxBtn");
+    if (bulkXlsxBtn) bulkXlsxBtn.addEventListener("click", openBulkXlsxModal);
+    const bxCancel = $("bxCancel");
+    if (bxCancel) bxCancel.addEventListener("click", closeBulkXlsxModal);
+    const bxClose = $("bulkXlsxClose");
+    if (bxClose) bxClose.addEventListener("click", closeBulkXlsxModal);
+    const bxStart = $("bxStart");
+    if (bxStart) bxStart.addEventListener("click", runBulkXlsxExport);
+
     // ---- Bulk scheduling (July 2026) ----
     const bulkSchedBtn = $("bulkScheduleBtn");
     if (bulkSchedBtn) {
@@ -1695,7 +1705,14 @@
           const ref = window.fbDb
             .collection("exam_schedules")
             .doc(_examScheduleId(_selectedExamId, g));
+          // BUG FIX (July 2026): this call was `batch.set(data, opts)`
+          // — the DocumentReference argument was missing, so Firestore
+          // received the payload where it expected a reference and
+          // rejected the whole batch with the minified type error
+          // "Expected type 'Ju', but it was: a custom Object object".
+          // WriteBatch.set() takes (ref, data, options).
           batch.set(
+            ref,
             {
               examId: _selectedExamId,
               group: g,
@@ -1887,6 +1904,59 @@
     const failures = [];
     const usedNames = {};
     let done = 0;
+    // How each file was obtained, so the summary can explain what
+    // happened rather than just saying "it worked".
+    const stats = { direct: 0, proxied: 0 };
+    // Once a direct fetch has failed with a CORS/network error there is
+    // no point retrying it for the remaining files — go straight to the
+    // proxy. Saves ~1 failed request per submission.
+    let directBlocked = false;
+
+    // Fetches one PDF, falling back to the same-origin proxy when the
+    // browser blocks the cross-origin request.
+    //
+    // A CORS rejection surfaces as an opaque `TypeError: Failed to
+    // fetch` with no status — indistinguishable from the network being
+    // down — which is exactly why the previous build could only guess
+    // at the cause. Trying the proxy resolves the ambiguity: if the
+    // proxy succeeds, it was CORS.
+    async function fetchPdfBlob(url) {
+      if (!directBlocked) {
+        try {
+          const resp = await fetch(url);
+          if (resp.ok) {
+            stats.direct++;
+            return await resp.blob();
+          }
+          // A real HTTP status came back, so CORS is fine and the
+          // problem is the object itself. Report it as-is.
+          throw new Error("HTTP " + resp.status);
+        } catch (e) {
+          const opaque =
+            e instanceof TypeError || /failed to fetch|networkerror/i.test(
+              String(e && e.message),
+            );
+          if (!opaque) throw e;
+          directBlocked = true; // stop trying direct for later files
+        }
+      }
+      // Same-origin proxy — no CORS involved.
+      const proxied =
+        "/api/fetch-pdf?url=" + encodeURIComponent(url);
+      const presp = await fetch(proxied);
+      if (!presp.ok) {
+        let detail = "HTTP " + presp.status;
+        try {
+          const j = await presp.json();
+          if (j && j.message) detail = j.message;
+        } catch (ignored) {
+          /* non-JSON body — keep the status */
+        }
+        throw new Error(detail);
+      }
+      stats.proxied++;
+      return await presp.blob();
+    }
 
     for (const r of rows) {
       const ref = _rowPdfRef(r);
@@ -1916,14 +1986,13 @@
           url = await firebase.storage().ref(ref.path).getDownloadURL();
         }
         // eslint-disable-next-line no-await-in-loop
-        const resp = await fetch(url);
-        if (!resp.ok) throw new Error("HTTP " + resp.status);
-        // eslint-disable-next-line no-await-in-loop
-        const blob = await resp.blob();
+        const blob = await fetchPdfBlob(url);
         zip.file(base + ".pdf", blob);
       } catch (e) {
         console.warn("[bulk-pdf] failed for", r.studentId, e);
-        failures.push((r.studentId || "?") + " — " + e.message);
+        failures.push(
+          (r.studentId || "?") + " — " + ((e && e.message) || String(e)),
+        );
       }
       done++;
       const pct = Math.round((done / rows.length) * 100);
@@ -1937,12 +2006,17 @@
       btn.disabled = false;
       err.style.display = "";
       err.innerHTML =
-        "Could not download any PDF. This is almost always because the Storage " +
-        "bucket does not allow browser downloads from this site (CORS).<br><br>" +
-        "Ask whoever administers Firebase to run:<br>" +
-        '<code>gsutil cors set cors.json gs://&lt;your-bucket&gt;</code><br><br>' +
-        "with a <code>cors.json</code> allowing <code>GET</code> from this origin. " +
-        'Individual "Load PDF" links keep working meanwhile.';
+        "<b>Could not download any PDF.</b><br><br>" +
+        "Both the direct download and the built-in " +
+        "<code>/api/fetch-pdf</code> proxy failed, so this is not a " +
+        "browser CORS problem. The most likely causes are:<br>" +
+        "&bull; the app was deployed without the <code>api/fetch-pdf.js</code> " +
+        "function (redeploy to add it);<br>" +
+        "&bull; the PDFs are missing from Storage;<br>" +
+        "&bull; Storage rules deny reads to this account.<br><br>" +
+        "<b>First failure:</b><br><code>" +
+        escapeHtml(failures[0] || "unknown") +
+        "</code>";
       prog.textContent = "";
       return;
     }
@@ -1992,10 +2066,203 @@
       });
     } else {
       setMsg(
-        "Downloaded " + succeeded + " PDF(s) as " + zipName + ".zip",
+        "Downloaded " +
+          succeeded +
+          " PDF(s) as " +
+          zipName +
+          ".zip" +
+          (stats.proxied
+            ? " (" +
+              stats.proxied +
+              " via the built-in proxy — configure bucket CORS to make these direct)"
+            : ""),
         "ok",
       );
     }
+  }
+
+  // =============================================================
+  // EXCEL EXPORT (July 2026)
+  // -------------------------------------------------------------
+  // Exports the submissions currently listed — so, like the PDF ZIP,
+  // the six filters double as the selection.
+  //
+  // Columns mirror the on-screen table, but values are written as
+  // real types rather than the table's display strings: scores go in
+  // as NUMBERS and the timestamp as a real DATE, so the instructor can
+  // sort, filter and average in Excel without cleaning the data first.
+  // A "65 / 100" text cell would be useless for exactly the analysis
+  // this export exists to enable.
+  // =============================================================
+
+  function openBulkXlsxModal() {
+    if (!_selectedExamId) {
+      setMsg("Select an exam first.", "warn");
+      return;
+    }
+    const rows = _lastRenderedRows || [];
+    const exam =
+      _examDocs.find(function (e) {
+        return e._id === _selectedExamId;
+      }) || {};
+
+    const scope = $("bxScope");
+    if (scope) {
+      scope.innerHTML =
+        "Exports the <b>" +
+        rows.length +
+        "</b> submission(s) currently listed, one row each. Change the " +
+        "filters above to narrow the selection.";
+    }
+    $("bxName").value = [
+      _courseLabel(exam.course),
+      _examTypeLabel(exam.examType),
+      exam.academicYear || "",
+    ]
+      .filter(Boolean)
+      .join(" - ");
+    $("bxError").style.display = "none";
+    $("bxProgress").textContent = "";
+    $("bxProgress").className = "sn-admin-msg";
+    $("bxStart").disabled = rows.length === 0;
+
+    $("bulkXlsxModal").style.display = "";
+    document.body.classList.add("sn-modal-open");
+  }
+
+  function closeBulkXlsxModal() {
+    $("bulkXlsxModal").style.display = "none";
+    document.body.classList.remove("sn-modal-open");
+  }
+
+  // Human label for the upload method, matching the table's tags.
+  function _methodLabel(r) {
+    const m = _normalizedMethod(r);
+    if (m === "firebase_manual") return "REGULAR";
+    if (m === "firebase_auto") return "AUTO";
+    if (m === "google_form") return "GOOGLE FORM";
+    return "UNKNOWN";
+  }
+
+  function runBulkXlsxExport() {
+    const err = $("bxError");
+    const prog = $("bxProgress");
+    err.style.display = "none";
+
+    if (!window.XLSX || typeof window.XLSX.utils !== "object") {
+      err.style.display = "";
+      err.textContent =
+        "The spreadsheet library failed to load. Check your network connection and reload the page.";
+      return;
+    }
+
+    const fileName = _safeFileName($("bxName").value);
+    if (!fileName) {
+      err.style.display = "";
+      err.textContent = "Please enter a name for the Excel file.";
+      return;
+    }
+
+    const rows = _lastRenderedRows || [];
+    if (!rows.length) {
+      err.style.display = "";
+      err.textContent = "There are no submissions listed to export.";
+      return;
+    }
+
+    const exam =
+      _examDocs.find(function (e) {
+        return e._id === _selectedExamId;
+      }) || {};
+
+    prog.textContent = "Building spreadsheet…";
+
+    const data = rows.map(function (r) {
+      const grading = r.aiGrading || null;
+      const instructor = r.instructorGrading || null;
+      const hasCodingPart =
+        Array.isArray(r.codingProblemMeta) && r.codingProblemMeta.length > 0;
+      const tabs = typeof r.tabSwitches === "number" ? r.tabSwitches : null;
+      const rowFinal = _rowFinalGrade(r);
+      const totalMax = _rowTotalMax(r);
+
+      return {
+        Submitted: r.submittedAt ? r.submittedAt.toDate() : "",
+        Group: r.group || "",
+        "Student ID": r.studentId || "",
+        "Full Name": [r.firstName, r.lastName].filter(Boolean).join(" "),
+        Version: r.version || "",
+        // Numeric so Excel can average / sort these directly.
+        "Test Points": r.mcScore != null ? roundPts(r.mcScore) : "",
+        "Test Max": r.mcMaxPoints != null ? roundPts(r.mcMaxPoints) : "",
+        "Coding (AI)":
+          !hasCodingPart
+            ? "No coding part"
+            : grading && grading.totalCoding != null
+              ? roundPts(grading.totalCoding)
+              : "",
+        "Coding (Instructor)":
+          !hasCodingPart
+            ? "No coding part"
+            : instructor && instructor.totalCoding != null
+              ? roundPts(instructor.totalCoding)
+              : "",
+        "Final Grade": rowFinal != null ? roundPts(rowFinal) : "",
+        "Grade Max": totalMax != null ? roundPts(totalMax) : "",
+        "Final %":
+          rowFinal != null && totalMax
+            ? roundPts((rowFinal / totalMax) * 100)
+            : "",
+        "Tab Switches": tabs != null ? tabs : "",
+        Violated: tabs != null && tabs > 0 ? "YES" : "NO",
+        "Time Used": r.timeUsed || "",
+        "Submission Method": _methodLabel(r),
+        "PDF URL": r.pdfUrl || "",
+      };
+    });
+
+    try {
+      const ws = window.XLSX.utils.json_to_sheet(data, {
+        cellDates: true,
+      });
+
+      // Column widths — without these every column renders at the
+      // default 8 characters and names/URLs are unreadable.
+      const headers = Object.keys(data[0] || {});
+      ws["!cols"] = headers.map(function (h) {
+        const longest = data.reduce(function (m, row) {
+          return Math.max(m, String(row[h] == null ? "" : row[h]).length);
+        }, h.length);
+        return { wch: Math.min(Math.max(longest + 2, 10), 46) };
+      });
+      // Freeze the header row so it stays visible while scrolling.
+      ws["!freeze"] = { xSplit: 0, ySplit: 1 };
+      if (window.XLSX.utils.decode_range && ws["!ref"]) {
+        ws["!autofilter"] = { ref: ws["!ref"] };
+      }
+
+      const wb = window.XLSX.utils.book_new();
+      // Excel caps sheet names at 31 chars and forbids : \ / ? * [ ]
+      const sheetName = _safeFileName(
+        _examTypeLabel(exam.examType) || "Submissions",
+      )
+        .replace(/[[\]]/g, "")
+        .slice(0, 31);
+      window.XLSX.utils.book_append_sheet(wb, ws, sheetName || "Submissions");
+      window.XLSX.writeFile(wb, fileName + ".xlsx");
+    } catch (e) {
+      console.error(e);
+      err.style.display = "";
+      err.textContent = "Could not build the spreadsheet: " + e.message;
+      prog.textContent = "";
+      return;
+    }
+
+    closeBulkXlsxModal();
+    setMsg(
+      "Exported " + rows.length + " submission(s) to " + fileName + ".xlsx",
+      "ok",
+    );
   }
 
   // ----- Per-problem max-points helpers (Round 2) ---------------
@@ -3061,6 +3328,21 @@
   // Cache of everything fetched for the selected exam, pre-filtered
   // only by exam scope and group permissions.
   let _submissionRows = [];
+
+  // Total points a submission was marked out of. Extracted so the
+  // table, the Final Grade filter and the Excel export all derive it
+  // identically instead of each recomputing it.
+  function _rowTotalMax(r) {
+    if (!r) return 100;
+    const grading = r.aiGrading || null;
+    const mcMax = r.mcMaxPoints != null ? r.mcMaxPoints : 0;
+    const codingMaxTotal = grading
+      ? grading.maxCoding || 0
+      : (r.codingProblemMeta || []).reduce(function (s, p) {
+          return s + (p.maxPoints || 0);
+        }, 0);
+    return roundPts((mcMax || 0) + (codingMaxTotal || 0)) || 100;
+  }
 
   // Resolve a row's final grade the same way the table's Final Grade
   // column does, so filtering and display can never disagree.
