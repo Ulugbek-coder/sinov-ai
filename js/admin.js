@@ -291,6 +291,18 @@
     const bpStart = $("bpStart");
     if (bpStart) bpStart.addEventListener("click", runBulkPdfDownload);
 
+    // ---- Orphaned proctoring cleanup (July 2026) ----
+    const orphanBtn = $("orphanCleanupBtn");
+    if (orphanBtn) orphanBtn.addEventListener("click", openOrphanModal);
+    const orphanCancel = $("orphanCancel");
+    if (orphanCancel) orphanCancel.addEventListener("click", closeOrphanModal);
+    const orphanCloseX = $("orphanClose");
+    if (orphanCloseX) orphanCloseX.addEventListener("click", closeOrphanModal);
+    const orphanScanBtn = $("orphanScan");
+    if (orphanScanBtn) orphanScanBtn.addEventListener("click", scanForOrphans);
+    const orphanDelBtn = $("orphanDelete");
+    if (orphanDelBtn) orphanDelBtn.addEventListener("click", deleteOrphans);
+
     // ---- Excel export (July 2026) ----
     const bulkXlsxBtn = $("bulkXlsxBtn");
     if (bulkXlsxBtn) bulkXlsxBtn.addEventListener("click", openBulkXlsxModal);
@@ -1015,10 +1027,13 @@
       '<div class="sn-exam-stat"><div class="sn-exam-stat-num">' +
       (d.mcCount || 0) +
       '</div><div class="sn-exam-stat-lbl">MC</div></div>' +
-      // Round 3: a General English exam has no coding part, so the
-      // slot shows its total points instead — the number an English
-      // instructor actually cares about at a glance.
-      (isEnglishCourseAdmin(d.course)
+      // Round 6: the third stat is "Coding" only when the exam
+      // actually HAS a coding part. Keying this off the course (English
+      // vs not) was wrong — a Calculus, Mathematical Analysis or
+      // Analytical Geometry exam, or a Programming 1 exam configured
+      // with 0 coding problems, all showed a meaningless "0 CODING".
+      // Now any exam without coding shows its total points instead.
+      ((d.codingCount || 0) === 0
         ? '<div class="sn-exam-stat"><div class="sn-exam-stat-num">' +
           fmtPts(_examTotalPoints(d)) +
           '</div><div class="sn-exam-stat-lbl">Points</div></div>'
@@ -1257,9 +1272,7 @@
         ". Each version is guaranteed to receive different coding problems.";
     } else {
       what =
-        "Generates a new shuffle of test questions for " +
-        vText +
-        ". This exam has no coding part, so no coding problems change.";
+        "Generates a newly shuffled set of test questions for " + vText + ".";
     }
 
     el.innerHTML =
@@ -2347,6 +2360,217 @@
     setMsg(
       "Exported " + rows.length + " submission(s) to " + fileName + ".xlsx",
       "ok",
+    );
+  }
+
+  // =============================================================
+  // ORPHANED PROCTORING CLEANUP (July 2026)
+  // -------------------------------------------------------------
+  // A proctoring session folder is an orphan when no submission
+  // references it. That happens whenever a student starts an exam and
+  // never finishes — crash, closed laptop, walked out.
+  //
+  // Two safety properties matter more than thoroughness here, because
+  // this deletes exam evidence:
+  //
+  //   1. AGE THRESHOLD. A session started ten minutes ago has no
+  //      submission because the student is still sitting the exam.
+  //      Deleting it would destroy the recording of an exam in
+  //      progress. Session ids embed their start time
+  //      (p_{group}_{studentId}_{epochMs}), so age is read straight
+  //      from the folder name without extra reads.
+  //   2. SCAN THEN CONFIRM. Nothing is deleted until the instructor
+  //      has seen the list.
+  //
+  // A session whose id can't be parsed is skipped, never deleted — an
+  // unknown age is not evidence of being safe to remove.
+  // =============================================================
+  let _orphanFound = [];
+
+  function openOrphanModal() {
+    _orphanFound = [];
+    $("orphanList").innerHTML = "";
+    $("orphanProgress").textContent = "";
+    $("orphanProgress").className = "sn-admin-msg";
+    $("orphanError").style.display = "none";
+    $("orphanDelete").disabled = true;
+    $("orphanModal").style.display = "";
+    document.body.classList.add("sn-modal-open");
+  }
+
+  function closeOrphanModal() {
+    $("orphanModal").style.display = "none";
+    document.body.classList.remove("sn-modal-open");
+  }
+
+  // p_{group}_{studentId}_{epochMs} -> { group, studentId, startedAt }
+  function _parseSessionId(id) {
+    const m = /^p_([A-Za-z0-9]+)_(\d+)_(\d{10,16})$/.exec(id || "");
+    if (!m) return null;
+    const ms = Number(m[3]);
+    if (!isFinite(ms) || ms <= 0) return null;
+    return { group: m[1], studentId: m[2], startedAt: new Date(ms) };
+  }
+
+  async function scanForOrphans() {
+    const err = $("orphanError");
+    const prog = $("orphanProgress");
+    const list = $("orphanList");
+    err.style.display = "none";
+    list.innerHTML = "";
+    _orphanFound = [];
+    $("orphanDelete").disabled = true;
+
+    const hours = parseInt($("orphanAge").value, 10) || 168;
+    const cutoff = Date.now() - hours * 3600 * 1000;
+
+    prog.textContent = "Reading submissions…";
+    let referenced;
+    try {
+      // Every session referenced by ANY submission, across all exams —
+      // scoping this to the selected exam would mark other exams'
+      // perfectly valid recordings as orphans.
+      const snap = await window.fbDb.collection("submissions").get();
+      referenced = new Set();
+      snap.forEach(function (d) {
+        const sid = d.data().proctorSessionId;
+        if (sid) referenced.add(sid);
+      });
+    } catch (e) {
+      err.style.display = "";
+      err.textContent = "Could not read submissions: " + e.message;
+      prog.textContent = "";
+      return;
+    }
+
+    prog.textContent = "Listing proctoring sessions…";
+    let prefixes;
+    try {
+      const listing = await firebase.storage().ref("proctoring").listAll();
+      prefixes = listing.prefixes.map(function (p) {
+        return p.name;
+      });
+    } catch (e) {
+      err.style.display = "";
+      err.innerHTML =
+        "Could not list proctoring storage: " +
+        escapeHtml(e.message) +
+        "<br><br>If this says the operation is not permitted, deploy the " +
+        "updated <code>storage.rules</code> — listing requires read access " +
+        "on the <code>proctoring/</code> prefix.";
+      prog.textContent = "";
+      return;
+    }
+
+    let skippedUnparsed = 0;
+    let skippedRecent = 0;
+    prefixes.forEach(function (sid) {
+      if (referenced.has(sid)) return; // has a submission — keep
+      const parsed = _parseSessionId(sid);
+      if (!parsed) {
+        skippedUnparsed++; // unknown age — never auto-delete
+        return;
+      }
+      if (parsed.startedAt.getTime() > cutoff) {
+        skippedRecent++; // possibly an exam in progress
+        return;
+      }
+      _orphanFound.push({ sessionId: sid, ...parsed });
+    });
+
+    _orphanFound.sort(function (a, b) {
+      return a.startedAt - b.startedAt;
+    });
+
+    prog.textContent =
+      "Scanned " +
+      prefixes.length +
+      " session(s): " +
+      _orphanFound.length +
+      " orphaned, " +
+      (prefixes.length - _orphanFound.length - skippedUnparsed - skippedRecent) +
+      " with submissions" +
+      (skippedRecent ? ", " + skippedRecent + " too recent" : "") +
+      (skippedUnparsed ? ", " + skippedUnparsed + " unrecognised (skipped)" : "") +
+      ".";
+
+    if (!_orphanFound.length) {
+      list.innerHTML =
+        '<div class="sn-hint">Nothing to clean up.</div>';
+      return;
+    }
+
+    list.innerHTML = _orphanFound
+      .map(function (o) {
+        return (
+          '<div class="sn-orphan-row">' +
+          '<span class="sn-orphan-id">' +
+          escapeHtml(o.sessionId) +
+          "</span>" +
+          '<span class="sn-orphan-meta">' +
+          escapeHtml(o.group) +
+          " &middot; " +
+          escapeHtml(o.studentId) +
+          " &middot; " +
+          o.startedAt.toLocaleString() +
+          "</span>" +
+          "</div>"
+        );
+      })
+      .join("");
+    $("orphanDelete").disabled = false;
+  }
+
+  async function deleteOrphans() {
+    if (!_orphanFound.length) return;
+    const ok = await modalConfirm({
+      title: "Delete orphaned recordings?",
+      message:
+        "This permanently deletes the webcam frames and proctoring events for <b>" +
+        _orphanFound.length +
+        "</b> session(s) that have no submission.<br><br>" +
+        "<b>This cannot be undone.</b>",
+      confirmLabel: "Delete permanently",
+      cancelLabel: "Cancel",
+      confirmStyle: "danger",
+      kind: "danger",
+      icon: "!",
+    });
+    if (!ok) return;
+
+    const prog = $("orphanProgress");
+    const btn = $("orphanDelete");
+    btn.disabled = true;
+    let frames = 0;
+    let events = 0;
+    let failed = 0;
+    let done = 0;
+
+    for (const o of _orphanFound) {
+      // eslint-disable-next-line no-await-in-loop
+      const res = await purgeProctoringSession(o.sessionId);
+      frames += res.frames;
+      events += res.events;
+      failed += res.failed;
+      done++;
+      prog.textContent =
+        "Cleaning " + done + " of " + _orphanFound.length + "…";
+    }
+
+    _orphanFound = [];
+    $("orphanList").innerHTML = "";
+    prog.textContent = "";
+    closeOrphanModal();
+    setMsg(
+      "Removed " +
+        frames +
+        " frame(s) and " +
+        events +
+        " event(s) from " +
+        done +
+        " orphaned session(s)" +
+        (failed ? " — " + failed + " file(s) could not be deleted." : "."),
+      failed ? "warn" : "ok",
     );
   }
 
@@ -3978,7 +4202,94 @@
     return "submissions/" + group + "/" + filename;
   }
 
+  // =============================================================
+  // PROCTORING EVIDENCE CLEANUP (July 2026)
+  // -------------------------------------------------------------
+  // Deleting a submission used to remove only its Firestore record and
+  // its PDF, leaving the webcam frames and proctoring events behind.
+  // That meant images of a student persisted after the record they
+  // belonged to was gone — a retention problem as much as a storage
+  // one. These helpers are also reused by the orphan-cleanup tool.
+  // =============================================================
+
+  // Recursively delete everything under a Storage prefix.
+  // Returns { deleted, failed }.
+  async function deleteStoragePrefix(prefixPath) {
+    const out = { deleted: 0, failed: 0 };
+    if (!window.firebase || !firebase.storage) return out;
+    let listing;
+    try {
+      listing = await firebase.storage().ref(prefixPath).listAll();
+    } catch (err) {
+      // Nothing there, or listing denied — nothing to clean.
+      if (!err || err.code !== "storage/object-not-found") {
+        console.warn("[cleanup] listAll failed for", prefixPath, err);
+      }
+      return out;
+    }
+    for (const item of listing.items) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        await item.delete();
+        out.deleted++;
+      } catch (err) {
+        if (!err || err.code !== "storage/object-not-found") out.failed++;
+      }
+    }
+    // Storage has no real directories — subfolders surface as prefixes.
+    for (const sub of listing.prefixes) {
+      // eslint-disable-next-line no-await-in-loop
+      const r = await deleteStoragePrefix(sub.fullPath);
+      out.deleted += r.deleted;
+      out.failed += r.failed;
+    }
+    return out;
+  }
+
+  // Delete every proctoring_events document for a session.
+  async function deleteProctoringEvents(sessionId) {
+    if (!sessionId) return 0;
+    let n = 0;
+    try {
+      const snap = await window.fbDb
+        .collection("proctoring_events")
+        .where("sessionId", "==", sessionId)
+        .get();
+      // Chunked batches — Firestore caps a batch at 500 writes.
+      const docs = snap.docs;
+      for (let i = 0; i < docs.length; i += 400) {
+        const batch = window.fbDb.batch();
+        docs.slice(i, i + 400).forEach(function (d) {
+          batch.delete(d.ref);
+        });
+        // eslint-disable-next-line no-await-in-loop
+        await batch.commit();
+        n += Math.min(400, docs.length - i);
+      }
+    } catch (err) {
+      console.warn("[cleanup] event delete failed for", sessionId, err);
+    }
+    return n;
+  }
+
+  // Remove all evidence for one proctoring session: frames + events.
+  async function purgeProctoringSession(sessionId) {
+    if (!sessionId) return { frames: 0, events: 0, failed: 0 };
+    const files = await deleteStoragePrefix("proctoring/" + sessionId);
+    const events = await deleteProctoringEvents(sessionId);
+    return { frames: files.deleted, events: events, failed: files.failed };
+  }
+
   function deleteSubmission(docId, pdfPath, rowEl) {
+    // Capture the proctoring session BEFORE the record disappears — it
+    // is the only link to that student's webcam evidence.
+    const sessionId = (function () {
+      const row = (_lastRenderedRows || []).find(function (r) {
+        return r.id === docId;
+      });
+      return (row && row.proctorSessionId) || null;
+    })();
+
     // Two-step delete: Firestore record first, then Storage PDF.
     // We do Firestore first because if Firestore fails (permission, network),
     // leaving the PDF behind is harmless — but orphaning a Firestore record
@@ -3988,6 +4299,28 @@
       .doc(docId)
       .delete()
       .then(function () {
+        // Cascade: remove this session's proctoring frames and events.
+        // Runs in the background — the submission is already gone, and a
+        // cleanup failure must not block the UI. Anything left behind is
+        // recoverable via the orphan-cleanup tool.
+        if (sessionId) {
+          purgeProctoringSession(sessionId)
+            .then(function (res) {
+              console.log(
+                "✓ Proctoring evidence purged for " +
+                  sessionId +
+                  ": " +
+                  res.frames +
+                  " frame(s), " +
+                  res.events +
+                  " event(s)" +
+                  (res.failed ? ", " + res.failed + " failed" : ""),
+              );
+            })
+            .catch(function (err) {
+              console.warn("✗ Proctoring cleanup failed:", err);
+            });
+        }
         // Firestore record is now gone. Remove the row from the admin table.
         if (rowEl) rowEl.remove();
         const countEl = $("subCountNum");
@@ -4195,9 +4528,10 @@
         _vSubject +
         " will receive newly-chosen coding problems and a new test-question shuffle.";
     } else {
+      // No coding part — say nothing about coding at all. Mentioning
+      // something the exam doesn't have only raises questions.
       _whatChanges =
-        _vSubject +
-        " will receive a new test-question shuffle. This exam has no coding part, so no coding problems change.";
+        _vSubject + " will receive a newly shuffled set of test questions.";
     }
 
     const ok = await modalConfirm({

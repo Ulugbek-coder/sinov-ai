@@ -246,6 +246,35 @@ window.SINOV_COURSES = [
     },
   },
   {
+    id: "discmath",
+    label: "Discrete Mathematics",
+    structure: "mc_only",
+    translateQuestions: true,
+    bankKey: "discrete_math",
+    feedback: {
+      subject: {
+        en: "discrete mathematics",
+        uz: "diskret matematika",
+        ru: "дискретная математика",
+      },
+      tutorRole: "a supportive university discrete mathematics tutor",
+      topicHint:
+        "propositional logic and truth tables, negation of quantified statements, sets and power sets, unions and intersections, injective and surjective functions, function composition, recurrence relations, summations and products, modular arithmetic (mod and div), the product and sum rules, permutations and combinations",
+      resourceHint:
+        "your lecture notes, Rosen's Discrete Mathematics and Its Applications, Khan Academy",
+      fallbackTopic: {
+        en: "Logic, Sets and Counting",
+        uz: "Mantiq, to'plamlar va kombinatorika",
+        ru: "Логика, множества и комбинаторика",
+      },
+      fallbackResources: {
+        en: "your lecture notes, ask your instructor",
+        uz: "ma'ruza qaydlaringiz, o'qituvchidan so'rang",
+        ru: "ваши лекционные записи, обратитесь к преподавателю",
+      },
+    },
+  },
+  {
     id: "anageo",
     label: "Analytical Geometry",
     structure: "mc_only",
