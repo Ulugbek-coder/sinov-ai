@@ -134,7 +134,7 @@ module.exports = async function handler(req, res) {
   // -----------------------------------------------------------------
   // The prompt asks Gemini to:
   //   (a) read the student's wrong/skipped questions + code snippets
-  //   (b) infer which C++ topics they're weak in (e.g. pointers,
+  //   (b) infer which subject topics they are weak in (the subject and
   //       integer division, operator precedence, string indexing)
   //   (c) produce 3-4 trilingual recommendations
   //   (d) return strict JSON only
@@ -228,12 +228,39 @@ module.exports = async function handler(req, res) {
     scoringNarrative = "MC SCORING DETAILS:\n" + lines.join("\n") + "\n\n";
   }
 
+  // -----------------------------------------------------------------
+  // Subject profile (Round 4, July 2026)
+  // -----------------------------------------------------------------
+  // The prompt used to be hardcoded to C++, so a General English or
+  // Calculus student was told to study pointers and memory. The client
+  // now forwards the course's profile from js/courses.js; everything
+  // below is derived from it, with a neutral default so an unknown or
+  // legacy course still produces sensible, non-misleading advice.
+  const profile = (req.body && req.body.subjectProfile) || null;
+  const courseLabel = (req.body && req.body.courseLabel) || "this course";
+  const subjEn = profile && profile.subject ? profile.subject.en : courseLabel;
+  const tutorRole =
+    profile && profile.tutorRole
+      ? profile.tutorRole
+      : "a supportive university tutor for " + courseLabel;
+  const topicHint =
+    profile && profile.topicHint
+      ? profile.topicHint
+      : "the core concepts assessed by this exam";
+  const resourceHint =
+    profile && profile.resourceHint
+      ? profile.resourceHint
+      : "well-known reference sites for this subject";
+
   const promptText =
-    "You are a supportive C++ programming tutor reviewing an exam " +
+    "You are " +
+    tutorRole +
+    " reviewing an exam " +
     "submission. The student is " +
     studentName +
-    ", a first-year " +
-    "computer-science student at New Uzbekistan University.\n\n" +
+    ", a student at New Uzbekistan University taking " +
+    courseLabel +
+    ".\n\n" +
     "STUDENT'S RESULTS:\n" +
     "  • MC test points: " +
     mcScore +
@@ -257,7 +284,8 @@ module.exports = async function handler(req, res) {
       : "(No wrong answers — congratulate the student.)\n\n") +
     "YOUR TASK:\n" +
     "Analyze the wrong/skipped questions and identify the 3 specific " +
-    "C++ topics where this student needs the most help. For each, give " +
+    subjEn +
+    " topics where this student needs the most help. For each, give " +
     "a short, encouraging recommendation and 1-2 study resource suggestions.\n\n" +
     "RESOURCE RULES — these are STRICT, the system has no knowledge of the\n" +
     "student's course materials:\n" +
@@ -266,20 +294,32 @@ module.exports = async function handler(req, res) {
     "    course uses; making up chapter numbers misleads the student.\n" +
     "  - DO NOT invent specific URLs, video titles, or course names.\n" +
     "  - DO use these resource shapes only:\n" +
-    "      (a) Generic topic phrases the student can search for, e.g.\n" +
-    "          'C++ pointer fundamentals', 'C++ operator precedence rules'.\n" +
-    "      (b) Well-known reference site NAMES (no URLs), e.g.\n" +
-    "          'cppreference.com', 'learncpp.com'.\n" +
-    "      (c) Generic study activities, e.g. 'Hand-trace small code\n" +
-    "          snippets', 'Practice problems on dynamic memory'.\n" +
+    "      (a) Generic topic phrases the student can search for, drawn\n" +
+    "          from this subject. Plausible topics for this exam include:\n" +
+    "          " +
+    topicHint +
+    ".\n" +
+    "      (b) Well-known reference site NAMES (no URLs). For this\n" +
+    "          subject, appropriate ones are: " +
+    resourceHint +
+    ".\n" +
+    "      (c) Generic study activities appropriate to " +
+    subjEn +
+    ",\n" +
+    "          e.g. 'work through practice problems', 'explain each\n" +
+    "          answer in your own words'.\n" +
+    "  - Recommend ONLY topics and resources that belong to " +
+    subjEn +
+    ".\n" +
+    "    Never mention programming, pointers or code unless this exam IS\n" +
+    "    a programming exam.\n" +
     "  - The 'resources' field is a short comma-separated list (2-4 items)\n" +
     "    using only the shapes above. Examples of GOOD values:\n" +
-    "      'cppreference.com on pointers, C++ pointer fundamentals tutorials, hand-trace pointer examples'\n" +
-    "      'learncpp.com loops section, C++ for-loop practice problems'\n" +
+    "      '<reference site> on <topic>, <topic> fundamentals tutorials, practice problems on <topic>'\n" +
     "    Examples of BAD values (do NOT produce these):\n" +
     "      'Textbook Chapter 8: Pointers'   (invented chapter)\n" +
     "      'Lecture 5 notes'                (invented lecture)\n" +
-    "      'C++ Primer by Lippman'          (invented book)\n" +
+    "      'Some Textbook by An Author'     (invented book)\n" +
     "      'https://example.com/pointers'   (invented URL)\n\n" +
     "OUTPUT FORMAT — respond with STRICT JSON ONLY (no markdown, no code " +
     "fences, no commentary outside the JSON). Use this exact schema:\n\n" +
@@ -308,9 +348,12 @@ module.exports = async function handler(req, res) {
     "  - The student's full name follows the opening phrase, then a comma,\n" +
     "    then the assessment sentence.\n" +
     "  - No greetings like 'Hello' or 'Hi' — use the formal opening above.\n\n" +
-    "Tone: warm and encouraging, never demoralizing. Be specific about C++ " +
-    'concepts, not generic ("you struggled with operator precedence" not ' +
-    'just "you should review C++"). If the student did very well (>=80%), ' +
+    "Tone: warm and encouraging, never demoralizing. Be specific about " +
+    subjEn +
+    " concepts rather than generic — name the actual concept the student " +
+    "missed instead of telling them to 'review " +
+    subjEn +
+    "'. If the student did very well (>=80%), " +
     "still pick 3 topics where they could deepen understanding.\n" +
     "All three languages must contain the SAME 3 topics in the SAME order.\n" +
     "The Uzbek and Russian resource lists must follow the same RESOURCE\n" +
@@ -399,7 +442,9 @@ module.exports = async function handler(req, res) {
   const text = part && typeof part.text === "string" ? part.text : "";
   if (!text) {
     console.warn("[feedback-generate] Empty Gemini response:", respJson);
-    return res.status(200).json(fallbackFeedback(studentName));
+    return res.status(200).json(
+      fallbackFeedback(studentName, (req.body && req.body.subjectProfile) || null),
+    );
   }
 
   // Parse the JSON — strip any code fences just in case Gemini ignores
@@ -418,7 +463,9 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     console.error("[feedback-generate] failed to parse Gemini JSON:", err);
     console.error("[feedback-generate] raw text:", cleanText.slice(0, 500));
-    return res.status(200).json(fallbackFeedback(studentName));
+    return res.status(200).json(
+      fallbackFeedback(studentName, (req.body && req.body.subjectProfile) || null),
+    );
   }
 
   // Validate shape — ensure all three languages have headlines + 3 recommendations
@@ -468,30 +515,45 @@ function defaultHeadline(lang, name) {
     return "Ваши результаты экзамена проанализированы, " + name + ".";
   return "Your exam results have been analyzed, " + name + ".";
 }
-function defaultTopic(lang) {
-  if (lang === "uz") return "C++ asoslari";
-  if (lang === "ru") return "Основы C++";
-  return "C++ Fundamentals";
+// Round 4: the fallback topic/resources come from the course profile
+// when the client supplied one. `profile` may be null (unknown or
+// legacy course), in which case we use subject-neutral wording rather
+// than the old C++ text.
+function defaultTopic(lang, profile) {
+  if (profile && profile.fallbackTopic && profile.fallbackTopic[lang]) {
+    return profile.fallbackTopic[lang];
+  }
+  if (lang === "uz") return "Asosiy tushunchalar";
+  if (lang === "ru") return "Основные понятия";
+  return "Core Concepts";
+}
+function defaultResources(lang, profile) {
+  if (profile && profile.fallbackResources && profile.fallbackResources[lang]) {
+    return profile.fallbackResources[lang];
+  }
+  if (lang === "uz") return "o'qituvchidan so'rang";
+  if (lang === "ru") return "обратитесь к преподавателю";
+  return "ask your instructor";
 }
 function defaultAdvice(lang) {
   if (lang === "uz")
-    return "Asosiy C++ kontseptsiyalarini takrorlang va o'qituvchidan yordam so'rang.";
+    return "Ushbu fanning asosiy tushunchalarini takrorlang va o'qituvchidan yordam so'rang.";
   if (lang === "ru")
-    return "Повторите основные концепции C++ и обратитесь к преподавателю за помощью.";
-  return "Review the core C++ concepts and ask your instructor for guidance.";
+    return "Повторите основные понятия этого предмета и обратитесь к преподавателю за помощью.";
+  return "Review the core concepts of this course and ask your instructor for guidance.";
 }
 
-function fallbackFeedback(studentName) {
+function fallbackFeedback(studentName, profile) {
   return {
     en: {
       headline: defaultHeadline("en", studentName),
       recommendations: [
         {
-          topic: defaultTopic("en"),
+          topic: defaultTopic("en", profile),
           advice:
             "AI feedback generation was unavailable for this submission. " +
             "Please review your incorrect answers with your instructor.",
-          resources: "cppreference.com, ask your instructor",
+          resources: defaultResources("en", profile),
         },
       ],
     },
@@ -499,11 +561,11 @@ function fallbackFeedback(studentName) {
       headline: defaultHeadline("uz", studentName),
       recommendations: [
         {
-          topic: defaultTopic("uz"),
+          topic: defaultTopic("uz", profile),
           advice:
             "Bu topshiriq uchun AI fikr-mulohaza yaratish mavjud emas edi. " +
             "Iltimos, noto'g'ri javoblaringizni o'qituvchi bilan ko'rib chiqing.",
-          resources: "cppreference.com, o'qituvchidan so'rang",
+          resources: defaultResources("uz", profile),
         },
       ],
     },
@@ -511,11 +573,11 @@ function fallbackFeedback(studentName) {
       headline: defaultHeadline("ru", studentName),
       recommendations: [
         {
-          topic: defaultTopic("ru"),
+          topic: defaultTopic("ru", profile),
           advice:
             "Создание AI-отзыва было недоступно для этой работы. " +
             "Пожалуйста, рассмотрите неверные ответы с преподавателем.",
-          resources: "cppreference.com, обратитесь к преподавателю",
+          resources: defaultResources("ru", profile),
         },
       ],
     },
