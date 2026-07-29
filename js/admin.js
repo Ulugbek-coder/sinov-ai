@@ -923,8 +923,14 @@
       (_selectedExamId === d._id ? " selected" : "");
     card.dataset.examId = d._id;
 
+    const isSelectedCard = _selectedExamId === d._id;
     const statusHtml =
       '<span class="sn-exam-badges">' +
+      // Text cue for the selected card, so selection isn't signalled by
+      // background colour alone.
+      (isSelectedCard
+        ? '<span class="sn-exam-selected-chip">&#10003; Selected</span>'
+        : "") +
       '<span class="sn-exam-status ' +
       _statusClass(status) +
       '">' +
@@ -3326,22 +3332,46 @@
   // =============================================================
   // SUBMISSIONS
   // =============================================================
+  // Monotonic token for submission fetches. Every call increments it;
+  // a response whose token is no longer current is discarded.
+  //
+  // Without this, clicking through exam cards quickly leaves several
+  // fetches in flight and whichever finishes LAST wins — which is not
+  // necessarily the one the instructor is looking at.
+  let _subLoadToken = 0;
+
   function loadSubmissions() {
-    const tb = $("subsTbody");
-    tb.innerHTML =
-      '<tr><td colspan="12" class="admin-empty">Loading…</td></tr>';
+    const tb = $(\u0024("subsTbody") ? "subsTbody" : "subsTbody");
+    const tbody = $("subsTbody");
     const subCountNum = $("subCountNum");
+    const myToken = ++_subLoadToken;
+
+    // Drop the previous exam's rows IMMEDIATELY. They used to linger in
+    // _submissionRows until the new fetch resolved, so any filter event
+    // fired during loading (a keystroke in Student ID, a dropdown
+    // change) would re-render the PREVIOUS exam's submissions under the
+    // newly-selected exam — cross-exam rows on screen, from cache.
+    _submissionRows = [];
+
+    tbody.innerHTML =
+      '<tr><td colspan="12" class="admin-empty">Loading…</td></tr>';
     if (subCountNum) subCountNum.textContent = "…";
+    _updateFilterSummary(0, 0);
 
     // No exam selected → submissions section is hidden (see
     // applySelectionToLowerSections), so this is rarely called. If it
     // does get called, render an explicit empty state.
     if (!_selectedExamId) {
-      tb.innerHTML =
+      tbody.innerHTML =
         '<tr><td colspan="12" class="admin-empty">Select an exam above to view its submissions.</td></tr>';
       if (subCountNum) subCountNum.textContent = "—";
       return;
     }
+
+    // Capture the exam this request is FOR. Filtering against the
+    // module-level _selectedExamId at resolve time would silently
+    // re-target a stale response at whatever is selected by then.
+    const forExamId = _selectedExamId;
 
     // Round 3 (July 2026): the fetch and the filtering are now
     // separate. We pull the exam's submissions once into
@@ -3356,12 +3386,15 @@
       .limit(500)
       .get()
       .then(function (snap) {
+        // A newer request has been issued — discard this response.
+        if (myToken !== _subLoadToken) return;
         const rows = [];
         snap.forEach(function (doc) {
           const d = doc.data();
-          // Exam-scope filter: skip submissions not tagged with the
-          // selected exam. Legacy untagged submissions are excluded here.
-          if (d.examId !== _selectedExamId) return;
+          // Exam-scope filter: exact match against the exam this
+          // request was issued for. A submission with no examId, or
+          // one belonging to any other exam, can never pass.
+          if (!d.examId || d.examId !== forExamId) return;
           // Hard cutoff: never show a submission whose group is outside
           // the current user's allowedGroups, even if the dropdown was
           // somehow tampered with. This stays on the fetch side so a
@@ -3374,9 +3407,10 @@
         applySubmissionFilters();
       })
       .catch(function (err) {
+        if (myToken !== _subLoadToken) return;
         console.error(err);
         _submissionRows = [];
-        tb.innerHTML =
+        tbody.innerHTML =
           '<tr><td colspan="12" class="admin-empty err">Load failed: ' +
           escapeHtml(err.message) +
           "</td></tr>";
