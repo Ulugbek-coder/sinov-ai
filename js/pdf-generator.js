@@ -250,6 +250,16 @@ async function generatePDFReport() {
     }
   }
 
+  // Round to 2dp — mirrors app.js roundPoints so section subtotals in
+  // the breakdown add up exactly to the stored total.
+  function roundP(n) {
+    if (typeof window !== "undefined" && typeof window.snRoundPoints === "function") {
+      return window.snRoundPoints(n);
+    }
+    if (typeof n !== "number" || !isFinite(n)) return 0;
+    return Math.round(n * 100) / 100;
+  }
+
   function stripQuestionHtml(html) {
     if (typeof html !== "string") return "";
     let s = html
@@ -301,7 +311,11 @@ async function generatePDFReport() {
     retake1: "Retake Exam 1",
     retake2: "Retake Exam 2",
   };
-  const headerExamType = examTypeLabels[cfg.examType] || "Final Exam";
+  // Round 5 (July 2026): exam type is now free text typed by the
+  // instructor. Legacy exams still store a slug ("retake2"), so we map
+  // known slugs first and otherwise print the typed text verbatim.
+  const headerExamType =
+    examTypeLabels[cfg.examType] || cfg.examType || "Exam";
   const semesterPretty = cfg.semester
     ? cfg.semester.charAt(0).toUpperCase() + cfg.semester.slice(1)
     : "Spring";
@@ -638,12 +652,27 @@ async function generatePDFReport() {
   y += infoH + 14;
 
   // ============================================================
-  // ---------- MC SCORING BREAKDOWN (Round 2) ----------
+  // ---------- MC SCORING BREAKDOWN (Round 2, fixed July 2026) ----------
   // Detailed table showing how the MC score was derived. Critical when
   // penalty-per-wrong > 0 — students need to see the math, not just the
   // final number. Always shown so students learn how grading works.
-  // ============================================================
-  const bdH = 102;
+  //
+  // BUG FIX: this block used to print a single "N x pointsPerCorrect"
+  // line. On a section-weighted exam (General English: Reading 5,
+  // Grammar 2.5, Vocabulary 2.5) `pointsPerCorrect` holds only the
+  // HIGHEST section rate, so a report showed "18 x 5 = +90 pts" above a
+  // total of 65 — two contradictory numbers on the same page, with the
+  // arithmetic appearing to favour the student. Mixed-point exams now
+  // get one row PER SECTION, each with its own rate, so the rows sum
+  // exactly to the total.
+  const bdSections =
+    mcBd.mixedPoints && Array.isArray(mcBd.sectionBreakdown)
+      ? mcBd.sectionBreakdown
+      : null;
+  // One row per section, or a single "Correct answers" row.
+  const bdCorrectRows = bdSections ? bdSections.length : 1;
+  const bdRowH = 16;
+  const bdH = 102 + (bdCorrectRows - 1) * bdRowH;
   doc.setFillColor(245, 248, 254);
   doc.setDrawColor(30, 58, 95);
   doc.setLineWidth(0.6);
@@ -667,88 +696,123 @@ async function generatePDFReport() {
   doc.setFontSize(9);
   doc.setTextColor(60, 60, 60);
 
-  // Correct
-  doc.setTextColor(45, 122, 58);
-  doc.text("Correct answers", colLabelX, y + 36);
-  doc.setTextColor(40, 40, 40);
-  doc.text(String(mcBd.correct), colCountX, y + 36);
-  doc.text(
-    mcBd.correct + " x " + mcBd.pointsPerCorrect + " =",
-    colMathX,
-    y + 36,
-  );
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(45, 122, 58);
-  doc.text(
-    "+" + mcBd.correct * mcBd.pointsPerCorrect + " pts",
-    colPtsX,
-    y + 36,
-    { align: "right" },
-  );
+  // ---- Correct answers ----
+  let bdY = y + 36;
+  if (bdSections) {
+    // Section-weighted exam: one row per section at its own rate.
+    bdSections.forEach(function (sec) {
+      const earned = roundP(sec.correct * sec.pointsPerCorrect);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(45, 122, 58);
+      doc.text(
+        _sectionLabelForPdf(sec.section) + " correct",
+        colLabelX,
+        bdY,
+      );
+      doc.setTextColor(40, 40, 40);
+      doc.text(sec.correct + " / " + sec.count, colCountX, bdY);
+      doc.text(
+        sec.correct + " x " + fmtP(sec.pointsPerCorrect) + " =",
+        colMathX,
+        bdY,
+      );
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(45, 122, 58);
+      doc.text("+" + fmtP(earned) + " pts", colPtsX, bdY, { align: "right" });
+      bdY += bdRowH;
+    });
+  } else {
+    doc.setTextColor(45, 122, 58);
+    doc.text("Correct answers", colLabelX, bdY);
+    doc.setTextColor(40, 40, 40);
+    doc.text(String(mcBd.correct), colCountX, bdY);
+    doc.text(
+      mcBd.correct + " x " + fmtP(mcBd.pointsPerCorrect) + " =",
+      colMathX,
+      bdY,
+    );
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(45, 122, 58);
+    doc.text(
+      "+" + fmtP(roundP(mcBd.correct * mcBd.pointsPerCorrect)) + " pts",
+      colPtsX,
+      bdY,
+      { align: "right" },
+    );
+    bdY += bdRowH;
+  }
 
-  // Wrong (only show penalty math if penalty > 0)
+  // ---- Wrong (only show penalty math if penalty > 0) ----
   doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
   doc.setTextColor(179, 38, 30);
-  doc.text("Wrong answers", colLabelX, y + 52);
+  doc.text("Wrong answers", colLabelX, bdY);
   doc.setTextColor(40, 40, 40);
-  doc.text(String(mcBd.wrong), colCountX, y + 52);
+  doc.text(String(mcBd.wrong), colCountX, bdY);
   if (mcBd.penaltyPerWrong > 0) {
     doc.text(
-      mcBd.wrong + " x -" + mcBd.penaltyPerWrong + " =",
+      mcBd.wrong + " x -" + fmtP(mcBd.penaltyPerWrong) + " =",
       colMathX,
-      y + 52,
+      bdY,
     );
     doc.setFont("helvetica", "bold");
     doc.setTextColor(179, 38, 30);
     doc.text(
-      "-" + mcBd.wrong * mcBd.penaltyPerWrong + " pts",
+      "-" + fmtP(roundP(mcBd.wrong * mcBd.penaltyPerWrong)) + " pts",
       colPtsX,
-      y + 52,
+      bdY,
       { align: "right" },
     );
   } else {
-    doc.text("no penalty configured", colMathX, y + 52);
+    doc.text("no penalty configured", colMathX, bdY);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(140, 140, 140);
-    doc.text("0 pts", colPtsX, y + 52, { align: "right" });
+    doc.text("0 pts", colPtsX, bdY, { align: "right" });
   }
+  bdY += bdRowH;
 
-  // Unanswered (always 0)
+  // ---- Unanswered (always 0) ----
   doc.setFont("helvetica", "normal");
   doc.setTextColor(120, 120, 120);
-  doc.text("Unanswered", colLabelX, y + 68);
+  doc.text("Unanswered", colLabelX, bdY);
   doc.setTextColor(40, 40, 40);
-  doc.text(String(mcBd.unanswered), colCountX, y + 68);
-  doc.text(mcBd.unanswered + " x 0 =", colMathX, y + 68);
+  doc.text(String(mcBd.unanswered), colCountX, bdY);
+  doc.text(mcBd.unanswered + " x 0 =", colMathX, bdY);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(140, 140, 140);
-  doc.text("0 pts", colPtsX, y + 68, { align: "right" });
+  doc.text("0 pts", colPtsX, bdY, { align: "right" });
 
   // Total row
+  const bdLineY = bdY + 10;
+  const bdTotalY = bdY + 24;
   doc.setDrawColor(30, 58, 95);
   doc.setLineWidth(0.4);
-  doc.line(margin + 14, y + 78, margin + contentW - 14, y + 78);
+  doc.line(margin + 14, bdLineY, margin + contentW - 14, bdLineY);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(30, 58, 95);
-  doc.text("TOTAL MC SCORE", colLabelX, y + 92);
+  doc.text("TOTAL MC SCORE", colLabelX, bdTotalY);
   // If penalty applied and brought score below 0, note that it was floored to 0
   if (mcBd.rawScore < 0) {
     doc.setFontSize(8);
     doc.setFont("helvetica", "italic");
     doc.setTextColor(120, 120, 120);
     doc.text(
-      "(raw = " + mcBd.rawScore + ", floored to 0)",
+      "(raw = " + fmtP(mcBd.rawScore) + ", floored to 0)",
       colLabelX + 105,
-      y + 92,
+      bdTotalY,
     );
   }
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   doc.setTextColor(45, 122, 58);
-  doc.text(fmtP(mcBd.finalScore) + " / " + fmtP(mcBd.maxPoints) + " pts", colPtsX, y + 92, {
-    align: "right",
-  });
+  doc.text(
+    fmtP(mcBd.finalScore) + " / " + fmtP(mcBd.maxPoints) + " pts",
+    colPtsX,
+    bdTotalY,
+    { align: "right" },
+  );
 
   doc.setTextColor(0, 0, 0);
   y += bdH + 14;

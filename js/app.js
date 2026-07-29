@@ -793,14 +793,39 @@ function validateForm() {
     studentInfo.firstName &&
     studentInfo.lastName;
 
-  // Schedule gate: must be open, unless master override is active
+  // Schedule gate: must be open, unless master override is active.
+  // snEffectiveScheduleStatus also enforces the per-exam allow-list.
   const scheduleOK =
     masterOverrideActive ||
-    (currentSchedule && currentSchedule.status === "open");
+    (currentSchedule && snEffectiveScheduleStatus() === "open");
 
   const valid = basicValid && scheduleOK;
   if ($("startBtn")) $("startBtn").disabled = !valid;
   return valid;
+}
+
+// ---------- Allow-list enforcement (Round 5, July 2026) ----------
+//
+// An instructor can restrict a scheduled exam to specific student IDs
+// (see the bulk-schedule modal in admin.js). This is the enforcement
+// side: without it the allow-list would be decoration.
+//
+// Returns the schedule status the student should actually be treated
+// as having. It is computed rather than stored because the student
+// types their ID AFTER the schedule is fetched — recomputing on every
+// validate/render keeps the gate correct as they type.
+function snEffectiveScheduleStatus() {
+  if (!currentSchedule) return null;
+  const allowed = currentSchedule.allowedStudents;
+  if (!Array.isArray(allowed) || allowed.length === 0) {
+    return currentSchedule.status; // unrestricted
+  }
+  const id = String((studentInfo && studentInfo.id) || "").trim();
+  // Don't accuse a student of being unlisted before they've typed an
+  // ID — that would show a scary red banner on an empty form.
+  if (!id) return currentSchedule.status;
+  if (allowed.indexOf(id) !== -1) return currentSchedule.status;
+  return "not_allowed";
 }
 
 // ---------- Schedule panel (welcome page) ----------
@@ -848,6 +873,26 @@ function renderSchedulePanel() {
   const s = currentSchedule;
   const tz = (window.FB && window.FB.TZ_LABEL) || "";
   const range = window.FBClient.formatScheduleWindow(s);
+
+  // Restricted exam and this student is not on the allow-list.
+  if (snEffectiveScheduleStatus() === "not_allowed") {
+    panel.className = "schedule-panel sp-notset";
+    $("spStatus").innerHTML =
+      '<span class="sn-status-badge notset">Not on the list</span>';
+    $("spDot").className = "sp-dot dot-notset";
+    $("spRange").innerHTML =
+      "This exam has been restricted by your instructor to specific students, " +
+      "and student ID <b>" +
+      escapeHtmlText(String(studentInfo.id || "")) +
+      "</b> is not among them." +
+      "<br><span class='sp-uz uz'>Bu imtihon o'qituvchi tomonidan faqat ayrim talabalar uchun ochilgan va sizning ID raqamingiz ro'yxatda yo'q.</span>" +
+      "<br><span class='sp-ru ru'>Этот экзамен открыт преподавателем только для определённых студентов, и вашего ID нет в списке.</span>";
+    $("spNote").innerHTML =
+      "Check that you typed your student ID correctly. If it is correct, contact your instructor." +
+      "<br><span class='sp-uz uz'>ID raqamingizni to'g'ri kiritganingizni tekshiring. To'g'ri bo'lsa, o'qituvchingizga murojaat qiling.</span>" +
+      "<br><span class='sp-ru ru'>Проверьте правильность ввода ID. Если он верен, обратитесь к преподавателю.</span>";
+    return;
+  }
 
   if (s.status === "not_set") {
     panel.className = "schedule-panel sp-notset";
@@ -922,16 +967,13 @@ async function handleGroupChange() {
   // If any dropdown is incomplete the helper returns null, in which
   // case fetchScheduleForGroup will fall back to the legacy collection.
   const examId = (function () {
-    const u = document.getElementById("universitySelect");
-    const f = document.getElementById("facultySelect");
-    const y = document.getElementById("academicYearSelect");
-    const sem = document.getElementById("semesterSelect");
-    const c = document.getElementById("courseSelect");
+    // Prefer the id stashed on the active config (see snActiveExamId).
+    const fromCfg = snActiveExamId();
+    if (fromCfg) return fromCfg;
+    // Legacy fallback: the exam dropdown now carries the document id
+    // directly as its option value.
     const et = document.getElementById("examTypeSelect");
-    if (!u || !f || !y || !sem || !c || !et) return null;
-    if (!u.value || !f.value || !y.value || !sem.value || !c.value || !et.value)
-      return null;
-    return [u.value, f.value, c.value, y.value, sem.value, et.value].join("_");
+    return et && et.value ? et.value : null;
   })();
   const s = await window.FBClient.fetchScheduleForGroup(group, examId);
   // Guard against rapid group switches: only apply if still the same group
@@ -988,17 +1030,7 @@ async function startExam() {
   let liveSeeds = null;
   try {
     if (window.FBClient && window.FBClient.fetchExamSeeds) {
-      const examIdForSeeds =
-        (window._sinovActiveExamConfig &&
-          [
-            window._sinovActiveExamConfig.university,
-            window._sinovActiveExamConfig.faculty,
-            window._sinovActiveExamConfig.course,
-            window._sinovActiveExamConfig.academicYear,
-            window._sinovActiveExamConfig.semester,
-            window._sinovActiveExamConfig.examType,
-          ].join("_")) ||
-        null;
+      const examIdForSeeds = snActiveExamId();
       liveSeeds = await window.FBClient.fetchExamSeeds(examIdForSeeds);
     }
   } catch (err) {
@@ -2417,6 +2449,30 @@ function applyEnglishOnlyLanguageLock() {
 // pulling in the admin module. Keep these in sync if the admin list
 // ever grows — search for "EXAM_TYPES" in admin.js.
 
+// Round 5 (July 2026): the authoritative exam document id.
+//
+// Three places used to rebuild this id by joining six config fields.
+// That was already fragile, and free-text exam types make it more so —
+// any character the admin sanitises out of the document id would cause
+// a silent mismatch here. The welcome page now stashes the real
+// document id on the active config, so we use it whenever present and
+// fall back to the historical reconstruction only for legacy flows.
+function snActiveExamId() {
+  const cfg = window._sinovActiveExamConfig;
+  if (!cfg) return null;
+  if (cfg.examId) return cfg.examId;
+  if (cfg._id) return cfg._id;
+  const parts = [
+    cfg.university,
+    cfg.faculty,
+    cfg.course,
+    cfg.academicYear,
+    cfg.semester,
+    cfg.examType,
+  ];
+  return parts.every(Boolean) ? parts.join("_") : null;
+}
+
 function _localExamTypeLabel(t) {
   // Mirror of EXAM_TYPES in admin.js
   switch (t) {
@@ -3022,17 +3078,7 @@ async function performSubmit(trigger) {
     // examId tag — composite key for the exam configuration the student
     // picked on the welcome page. Used by the admin Submissions filter.
     // Falls back to null for legacy exam flows where no config was picked.
-    examId:
-      (window._sinovActiveExamConfig &&
-        [
-          window._sinovActiveExamConfig.university,
-          window._sinovActiveExamConfig.faculty,
-          window._sinovActiveExamConfig.course,
-          window._sinovActiveExamConfig.academicYear,
-          window._sinovActiveExamConfig.semester,
-          window._sinovActiveExamConfig.examType,
-        ].join("_")) ||
-      null,
+    examId: snActiveExamId(),
     // Feature 5: verification photo data URL + Gemini glasses-check
     // metadata. The data URL is consumed by the PDF generator and
     // ALSO uploaded to Storage as a separate JPEG so the admin can
@@ -3597,8 +3643,15 @@ document.addEventListener("DOMContentLoaded", () => {
     ["studentId", "studentFirstName", "studentLastName"].forEach((id) => {
       const el = $(id);
       if (el) {
-        el.addEventListener("input", validateForm);
-        el.addEventListener("change", validateForm);
+        // Round 5: the allow-list verdict depends on the typed student
+        // ID, so the schedule panel has to repaint as they type — not
+        // just when the group changes.
+        const onEdit = function () {
+          validateForm();
+          if (id === "studentId") renderSchedulePanel();
+        };
+        el.addEventListener("input", onEdit);
+        el.addEventListener("change", onEdit);
       }
     });
 
@@ -3695,6 +3748,112 @@ document.addEventListener("DOMContentLoaded", () => {
       );
       sel.appendChild(
         new Option("Fall" + (current === "fall" ? " (current)" : ""), "fall"),
+      );
+    }
+
+    // -- Available exams (Round 5, July 2026) --------------------
+    //
+    // The exam dropdown used to be a hardcoded list of five types, so a
+    // student saw "Midterm Exam" whether or not one existed, and any
+    // custom type an instructor typed would never appear. Now the list
+    // is built from the exams that actually exist and are active.
+    //
+    // We fetch every active exam once and filter in memory rather than
+    // issuing a six-field equality query, which would need a composite
+    // index for each combination. The exams collection is small (tens
+    // of documents), so this is a single cheap read.
+    let _availableExams = null; // array of { id, ...data } once loaded
+    let _availableExamsPromise = null;
+
+    function snLoadAvailableExams() {
+      if (_availableExamsPromise) return _availableExamsPromise;
+      if (!window.fbDb) {
+        _availableExams = [];
+        _availableExamsPromise = Promise.resolve([]);
+        return _availableExamsPromise;
+      }
+      _availableExamsPromise = window.fbDb
+        .collection("exams")
+        .where("active", "==", true)
+        .get()
+        .then(function (snap) {
+          const out = [];
+          snap.forEach(function (doc) {
+            out.push(Object.assign({ _id: doc.id }, doc.data()));
+          });
+          _availableExams = out;
+          return out;
+        })
+        .catch(function (err) {
+          console.warn("[exams] list failed", err);
+          _availableExams = [];
+          return [];
+        });
+      return _availableExamsPromise;
+    }
+
+    // Exams matching the student's current selections.
+    function snMatchingExams() {
+      const uni = ($("universitySelect") || {}).value || "";
+      const fac = ($("facultySelect") || {}).value || "";
+      const year = ($("academicYearSelect") || {}).value || "";
+      const sem = ($("semesterSelect") || {}).value || "";
+      const course = ($("courseSelect") || {}).value || "";
+      if (!uni || !fac || !year || !sem || !course) return [];
+      return (_availableExams || []).filter(function (e) {
+        return (
+          e.university === uni &&
+          (e.faculty || "exact-sciences") === fac &&
+          e.academicYear === year &&
+          e.semester === sem &&
+          e.course === course
+        );
+      });
+    }
+
+    // Repaint the exam dropdown with only the exams that exist.
+    // Option VALUE is the Firestore document id, so selecting one needs
+    // no key reconstruction — this also removes any chance of the
+    // student page and the admin page disagreeing about how a free-text
+    // exam name maps to a document id.
+    function snPopulateExamDropdown() {
+      const sel = $("examTypeSelect");
+      if (!sel) return;
+      const prev = sel.value;
+      const matches = snMatchingExams();
+      sel.innerHTML = "";
+      if (!matches.length) {
+        sel.appendChild(new Option("— No exams available —", ""));
+        sel.disabled = true;
+        snHandleExamTypeChange();
+        return;
+      }
+      sel.appendChild(new Option("— Select your exam —", ""));
+      matches
+        .slice()
+        .sort(function (a, b) {
+          return String(a.examType || "").localeCompare(String(b.examType || ""));
+        })
+        .forEach(function (e) {
+          sel.appendChild(new Option(_localExamTypeLabel(e.examType), e._id));
+        });
+      sel.disabled = false;
+      // Preserve the student's choice if it survived the repaint.
+      if (prev && matches.some(function (e) { return e._id === prev; })) {
+        sel.value = prev;
+      } else {
+        sel.value = "";
+      }
+      snHandleExamTypeChange();
+    }
+
+    // Look up an already-fetched exam by document id.
+    function snExamById(id) {
+      if (!id) return null;
+      return (
+        (_availableExams || []).find(function (e) {
+          return e._id === id;
+        }) || null
       );
     }
 
@@ -3823,13 +3982,24 @@ document.addEventListener("DOMContentLoaded", () => {
       const courseSel = $("courseSelect");
       const examSel = $("examTypeSelect");
       if (!courseSel) return;
-      if (semSel && semSel.value && courseSel.value) {
-        examSel.disabled = false;
-      } else {
+      if (!(semSel && semSel.value && courseSel.value)) {
         examSel.disabled = true;
+        examSel.innerHTML = "";
+        examSel.appendChild(new Option("— Select your exam —", ""));
         examSel.value = "";
+        snHandleExamTypeChange();
+        return;
       }
-      snHandleExamTypeChange();
+      // Round 5: fill the dropdown from the exams that actually exist
+      // for this course/semester rather than a hardcoded list.
+      examSel.disabled = true;
+      examSel.innerHTML = "";
+      examSel.appendChild(new Option("Loading exams…", ""));
+      snLoadAvailableExams().then(function () {
+        // Bail if the student changed course while we were loading.
+        if (courseSel.value !== ($("courseSelect") || {}).value) return;
+        snPopulateExamDropdown();
+      });
     }
 
     function snHandleExamTypeChange() {
@@ -3845,8 +4015,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const configFields = $("snConfigFields");
       if (!examSel || !reveal) return;
 
-      const examType = examSel.value;
-      if (!examType) {
+      // Round 5: the option value is the exam's Firestore document id.
+      const selectedExamId = examSel.value;
+      if (!selectedExamId) {
         snHideReveal();
         return;
       }
@@ -3863,17 +4034,25 @@ document.addEventListener("DOMContentLoaded", () => {
       if (configFields) configFields.hidden = true;
       if (notConfigured) notConfigured.hidden = true;
 
-      snGetExamConfig(
-        uniSel ? uniSel.value : "",
-        facSel ? facSel.value : "",
-        yearSel ? yearSel.value : "",
-        semSel ? semSel.value : "",
-        courseSel ? courseSel.value : "",
-        examType,
-      ).then(function (config) {
+      // The exam document was already fetched by snLoadAvailableExams,
+      // so this resolves immediately; snGetExamConfig remains as a
+      // fallback for any exam not present in the cached list.
+      const _cached = snExamById(selectedExamId);
+      const _configPromise = _cached
+        ? Promise.resolve(_cached)
+        : snGetExamConfig(
+            uniSel ? uniSel.value : "",
+            facSel ? facSel.value : "",
+            yearSel ? yearSel.value : "",
+            semSel ? semSel.value : "",
+            courseSel ? courseSel.value : "",
+            selectedExamId,
+          );
+
+      _configPromise.then(function (config) {
         // Make sure the user hasn't changed their selection while we were
         // waiting. If they did, bail — the new handler will paint.
-        if (examSel.value !== examType) return;
+        if (examSel.value !== selectedExamId) return;
 
         if (config) {
           if (notConfigured) notConfigured.hidden = true;
@@ -3908,6 +4087,10 @@ document.addEventListener("DOMContentLoaded", () => {
             "School of Exact Sciences";
           enriched.courseLabel =
             courseLabels[enriched.course] || enriched.course;
+          // Keep the real Firestore document id on the config so
+          // schedules, seeds and submissions all reference the exact
+          // same exam without rebuilding the composite key.
+          enriched.examId = config._id || enriched.examId || null;
           window._sinovActiveExamConfig = enriched;
         } else {
           if (format) format.hidden = true;

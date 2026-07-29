@@ -33,7 +33,18 @@ async function fetchScheduleForGroup(group, examId) {
         else if (now < startAt) status = "not_started";
         else if (now >= startAt && now <= endAt) status = "open";
         else if (now > endAt) status = "ended";
-        return { startAt, endAt, status, active: d.active !== false };
+        return {
+          startAt,
+          endAt,
+          status,
+          active: d.active !== false,
+          // Round 5 (July 2026): optional allow-list of student IDs.
+          // Empty/absent means the whole group may sit the exam.
+          // Enforcement lives in app.js (snEffectiveScheduleStatus).
+          allowedStudents: Array.isArray(d.allowedStudents)
+            ? d.allowedStudents
+            : [],
+        };
       }
       // No per-exam doc — fall through to the legacy collection.
     }
@@ -48,7 +59,14 @@ async function fetchScheduleForGroup(group, examId) {
     else if (now < startAt) status = "not_started";
     else if (now >= startAt && now <= endAt) status = "open";
     else if (now > endAt) status = "ended";
-    return { startAt, endAt, status, active: d.active !== false };
+    // Legacy /schedules documents never carry an allow-list.
+    return {
+      startAt,
+      endAt,
+      status,
+      active: d.active !== false,
+      allowedStudents: [],
+    };
   } catch (err) {
     console.error("fetchScheduleForGroup failed:", err);
     return null;

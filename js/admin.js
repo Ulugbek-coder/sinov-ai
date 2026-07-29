@@ -280,6 +280,66 @@
     });
     const clearBtn = $("subClearFilters");
     if (clearBtn) clearBtn.addEventListener("click", clearSubmissionFilters);
+
+    // ---- Bulk PDF download (July 2026) ----
+    const bulkPdfBtn = $("bulkPdfBtn");
+    if (bulkPdfBtn) bulkPdfBtn.addEventListener("click", openBulkPdfModal);
+    const bpCancel = $("bpCancel");
+    if (bpCancel) bpCancel.addEventListener("click", closeBulkPdfModal);
+    const bpClose = $("bulkPdfClose");
+    if (bpClose) bpClose.addEventListener("click", closeBulkPdfModal);
+    const bpStart = $("bpStart");
+    if (bpStart) bpStart.addEventListener("click", runBulkPdfDownload);
+
+    // ---- Bulk scheduling (July 2026) ----
+    const bulkSchedBtn = $("bulkScheduleBtn");
+    if (bulkSchedBtn) {
+      bulkSchedBtn.addEventListener("click", openBulkScheduleModal);
+    }
+    const bsCancel = $("bsCancel");
+    if (bsCancel) bsCancel.addEventListener("click", closeBulkScheduleModal);
+    const bsClose = $("bulkSchedClose");
+    if (bsClose) bsClose.addEventListener("click", closeBulkScheduleModal);
+    const bsSave = $("bsSave");
+    if (bsSave) bsSave.addEventListener("click", saveBulkSchedule);
+    const bsAll = $("bsSelectAll");
+    if (bsAll) {
+      bsAll.addEventListener("click", function () {
+        document.querySelectorAll(".bs-group").forEach(function (cb) {
+          cb.checked = true;
+        });
+        _updateBsGroupCount();
+      });
+    }
+    const bsNone = $("bsSelectNone");
+    if (bsNone) {
+      bsNone.addEventListener("click", function () {
+        document.querySelectorAll(".bs-group").forEach(function (cb) {
+          cb.checked = false;
+        });
+        _updateBsGroupCount();
+      });
+    }
+    const bsAddBtn = $("bsAllowedAdd");
+    if (bsAddBtn) bsAddBtn.addEventListener("click", _bsAddAllowed);
+    const bsInput = $("bsAllowedInput");
+    if (bsInput) {
+      bsInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          _bsAddAllowed();
+        }
+      });
+    }
+    ["bsAccessAll", "bsAccessSome"].forEach(function (id) {
+      const el = $(id);
+      if (el) {
+        el.addEventListener("change", function () {
+          const on = $("bsAccessSome").checked;
+          $("bsAllowedWrap").style.display = on ? "" : "none";
+        });
+      }
+    });
   }
 
   // Free-text filters run on every keystroke, so coalesce them. The
@@ -467,20 +527,33 @@
     // different faculties (e.g. Exact Sciences vs Natural Sciences).
     // Legacy exams without a faculty default to "exact-sciences" for
     // backward compatibility — see openEditExamModal.
+    // Round 5: examType is now free text, so it must be made safe for
+    // use inside a Firestore document ID. Slashes would split the path;
+    // everything else (including spaces) is legal. Legacy slugs such as
+    // "retake2" pass through unchanged, so existing exam documents keep
+    // resolving to exactly the same ID.
+    const safeType = String(d.examType || "")
+      .replace(/\//g, "-")
+      .trim();
     return [
       d.university,
       d.faculty || "exact-sciences",
       d.course,
       d.academicYear,
       d.semester,
-      d.examType,
+      safeType,
     ].join("_");
   }
+  // Round 5 (July 2026): exam type is free text typed by the
+  // instructor. EXAM_TYPES is retained ONLY to translate the five
+  // legacy slugs ("retake2" -> "Retake Exam 2") that existing exam
+  // documents still carry. Anything else is already human-readable and
+  // is returned verbatim.
   function _examTypeLabel(t) {
     const entry = EXAM_TYPES.find(function (e) {
       return e.value === t;
     });
-    return entry ? entry.label : t;
+    return entry ? entry.label : t || "";
   }
   function _degreeLabel(d) {
     const entry = EXAM_DEGREES.find(function (e) {
@@ -630,6 +703,11 @@
             _schedulesByExamGroup[d.examId] = {};
           }
           _schedulesByExamGroup[d.examId][d.group] = {
+            // Round 5: surfaced in the table so a restriction set via
+            // the bulk tool is visible, not invisible state.
+            allowedStudents: Array.isArray(d.allowedStudents)
+              ? d.allowedStudents
+              : [],
             group: d.group,
             startAt: d.startAt && d.startAt.toDate ? d.startAt.toDate() : null,
             endAt: d.endAt && d.endAt.toDate ? d.endAt.toDate() : null,
@@ -1386,6 +1464,540 @@
     }
   }
 
+  // =============================================================
+  // BULK SCHEDULING (July 2026)
+  // -------------------------------------------------------------
+  // One window applied to many groups in a single pass, with an
+  // optional allow-list of student IDs.
+  //
+  // Access model:
+  //   allowedStudents omitted / empty  -> every student in the group
+  //   allowedStudents = ["250239", …]  -> only those IDs may start
+  //
+  // The allow-list is stored on the SCHEDULE document rather than on
+  // the exam, so the same exam can be open to a whole cohort in one
+  // group and to three named re-sitters in another. Enforcement lives
+  // in app.js (see snEffectiveScheduleStatus) — writing the list here
+  // without enforcing it there would be security theatre.
+  // =============================================================
+  let _bsAllowed = []; // student IDs currently on the allow-list
+
+  function _bsEligibleGroups() {
+    const exam = _examDocs.find(function (e) {
+      return e._id === _selectedExamId;
+    });
+    const eligible = exam ? expandGroupsFromFields(exam.fieldsOfStudy || []) : [];
+    const base = eligible.length ? eligible : GROUPS;
+    // Never offer a group the signed-in instructor cannot see.
+    return base.filter(canSeeGroup);
+  }
+
+  function openBulkScheduleModal() {
+    if (!_selectedExamId) {
+      setMsg("Select an exam first.", "warn");
+      return;
+    }
+    const exam =
+      _examDocs.find(function (e) {
+        return e._id === _selectedExamId;
+      }) || {};
+    const scope = $("bulkSchedScope");
+    if (scope) {
+      scope.innerHTML =
+        "Applies one start/end window to every group you tick below, for <b>" +
+        escapeHtml(_examTypeLabel(exam.examType)) +
+        " &middot; " +
+        escapeHtml(_courseLabel(exam.course)) +
+        "</b>. Existing schedules for those groups will be overwritten.";
+    }
+
+    // Reset the form.
+    $("bsStart").value = "";
+    $("bsEnd").value = "";
+    $("bsError").style.display = "none";
+    $("bsProgress").textContent = "";
+    $("bsProgress").className = "sn-admin-msg";
+    $("bsAccessAll").checked = true;
+    $("bsAllowedWrap").style.display = "none";
+    _bsAllowed = [];
+    _renderBsAllowed();
+
+    // Group checkboxes.
+    const grid = $("bsGroupGrid");
+    grid.innerHTML = "";
+    const groups = _bsEligibleGroups();
+    if (!groups.length) {
+      grid.innerHTML =
+        '<div class="sn-hint">No groups are eligible for this exam.</div>';
+    } else {
+      groups.forEach(function (g) {
+        const id = "bsG_" + g;
+        const lab = document.createElement("label");
+        lab.className = "sn-group-chip";
+        lab.innerHTML =
+          '<input type="checkbox" class="bs-group" value="' +
+          escapeHtml(g) +
+          '" id="' +
+          escapeHtml(id) +
+          '" /><span>' +
+          escapeHtml(g) +
+          "</span>";
+        grid.appendChild(lab);
+      });
+      grid.querySelectorAll(".bs-group").forEach(function (cb) {
+        cb.addEventListener("change", _updateBsGroupCount);
+      });
+    }
+    _updateBsGroupCount();
+
+    $("bulkSchedModal").style.display = "";
+    document.body.classList.add("sn-modal-open");
+  }
+
+  function closeBulkScheduleModal() {
+    $("bulkSchedModal").style.display = "none";
+    document.body.classList.remove("sn-modal-open");
+  }
+
+  function _updateBsGroupCount() {
+    const n = document.querySelectorAll(".bs-group:checked").length;
+    const el = $("bsGroupCount");
+    if (el) el.textContent = String(n);
+  }
+
+  function _renderBsAllowed() {
+    const list = $("bsAllowedList");
+    const count = $("bsAllowedCount");
+    if (count) count.textContent = String(_bsAllowed.length);
+    if (!list) return;
+    if (!_bsAllowed.length) {
+      list.innerHTML =
+        '<div class="sn-hint-xs">No student IDs added yet.</div>';
+      return;
+    }
+    list.innerHTML = _bsAllowed
+      .map(function (id) {
+        return (
+          '<span class="sn-allow-chip">' +
+          escapeHtml(id) +
+          '<button type="button" class="sn-allow-x" data-id="' +
+          escapeHtml(id) +
+          '" aria-label="Remove ' +
+          escapeHtml(id) +
+          '">&times;</button></span>'
+        );
+      })
+      .join("");
+    list.querySelectorAll(".sn-allow-x").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        _bsAllowed = _bsAllowed.filter(function (x) {
+          return x !== btn.dataset.id;
+        });
+        _renderBsAllowed();
+      });
+    });
+  }
+
+  // Accepts one ID or several separated by commas / spaces / newlines,
+  // so an instructor can paste a column straight out of a spreadsheet.
+  function _bsAddAllowed() {
+    const inp = $("bsAllowedInput");
+    if (!inp) return;
+    const raw = inp.value || "";
+    const parts = raw
+      .split(/[\s,;]+/)
+      .map(function (x) {
+        return x.trim();
+      })
+      .filter(Boolean);
+    if (!parts.length) return;
+    const rejected = [];
+    parts.forEach(function (id) {
+      // Student IDs are numeric on this platform; reject anything else
+      // rather than silently storing an ID that can never match.
+      if (!/^\d{4,12}$/.test(id)) {
+        rejected.push(id);
+        return;
+      }
+      if (_bsAllowed.indexOf(id) === -1) _bsAllowed.push(id);
+    });
+    inp.value = "";
+    _renderBsAllowed();
+    const err = $("bsError");
+    if (rejected.length) {
+      err.style.display = "";
+      err.textContent =
+        "Ignored (not a valid student ID): " + rejected.join(", ");
+    } else {
+      err.style.display = "none";
+    }
+  }
+
+  async function saveBulkSchedule() {
+    const err = $("bsError");
+    const prog = $("bsProgress");
+    const show = function (m) {
+      err.style.display = "";
+      err.textContent = m;
+    };
+    err.style.display = "none";
+
+    if (!_selectedExamId) return show("Select an exam first.");
+
+    const startVal = $("bsStart").value;
+    const endVal = $("bsEnd").value;
+    if (!startVal || !endVal) {
+      return show("Please pick both a start and an end time.");
+    }
+    const startDate = new Date(startVal);
+    const endDate = new Date(endVal);
+    if (!(startDate instanceof Date) || isNaN(startDate)) {
+      return show("Start time is not a valid date.");
+    }
+    if (endDate <= startDate) {
+      return show("End time must be after start time.");
+    }
+
+    const groups = Array.prototype.map.call(
+      document.querySelectorAll(".bs-group:checked"),
+      function (cb) {
+        return cb.value;
+      },
+    );
+    if (!groups.length) return show("Tick at least one group.");
+
+    const restricted = $("bsAccessSome").checked;
+    if (restricted && !_bsAllowed.length) {
+      return show(
+        'You chose "only specific students" but the allow-list is empty. Add at least one student ID, or switch back to "all students".',
+      );
+    }
+
+    const me =
+      (window.fbAuth.currentUser && window.fbAuth.currentUser.email) ||
+      "unknown";
+    const btn = $("bsSave");
+    btn.disabled = true;
+    prog.className = "sn-admin-msg";
+    prog.textContent = "Saving…";
+
+    // Firestore batches cap at 500 writes; group counts here are far
+    // below that, but chunking keeps this correct if the group list
+    // ever grows.
+    const CHUNK = 400;
+    let written = 0;
+    const failures = [];
+    try {
+      for (let i = 0; i < groups.length; i += CHUNK) {
+        const slice = groups.slice(i, i + CHUNK);
+        const batch = window.fbDb.batch();
+        slice.forEach(function (g) {
+          const ref = window.fbDb
+            .collection("exam_schedules")
+            .doc(_examScheduleId(_selectedExamId, g));
+          batch.set(
+            {
+              examId: _selectedExamId,
+              group: g,
+              startAt: firebase.firestore.Timestamp.fromDate(startDate),
+              endAt: firebase.firestore.Timestamp.fromDate(endDate),
+              active: true,
+              // Empty array = unrestricted. Stored explicitly (rather
+              // than omitted) so re-running the bulk tool with "all
+              // students" clears a previous restriction instead of
+              // silently leaving it in place.
+              allowedStudents: restricted ? _bsAllowed.slice() : [],
+              updatedBy: me,
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
+        });
+        // eslint-disable-next-line no-await-in-loop
+        await batch.commit();
+        written += slice.length;
+        prog.textContent = "Saved " + written + " of " + groups.length + "…";
+      }
+    } catch (e) {
+      console.error(e);
+      btn.disabled = false;
+      prog.textContent = "";
+      return show("Save failed: " + e.message);
+    }
+
+    // Refresh the in-memory cache so the table and the exam-card status
+    // badges update without a reload.
+    if (!_schedulesByExamGroup[_selectedExamId]) {
+      _schedulesByExamGroup[_selectedExamId] = {};
+    }
+    groups.forEach(function (g) {
+      _schedulesByExamGroup[_selectedExamId][g] = {
+        group: g,
+        startAt: startDate,
+        endAt: endDate,
+        scheduledBy: me,
+        allowedStudents: restricted ? _bsAllowed.slice() : [],
+      };
+    });
+    renderExamGrid();
+    loadAllSchedules();
+
+    btn.disabled = false;
+    closeBulkScheduleModal();
+    setMsg(
+      "Scheduled " +
+        groups.length +
+        " group(s)" +
+        (restricted
+          ? ", restricted to " + _bsAllowed.length + " student ID(s)."
+          : ".") +
+        (failures.length ? " " + failures.length + " failed." : ""),
+      "ok",
+    );
+  }
+
+  // =============================================================
+  // BULK PDF DOWNLOAD (July 2026)
+  // -------------------------------------------------------------
+  // Zips every PDF for the submissions currently listed in the table
+  // (so the six filters double as a selection mechanism — filter to
+  // one group, download just that group).
+  //
+  // Each PDF is fetched from Firebase Storage in the browser. That
+  // requires CORS to be configured on the bucket; if it isn't, fetch
+  // fails with an opaque network error. Rather than produce an empty
+  // or half-silent ZIP we count failures, still deliver whatever
+  // succeeded, and print the exact gsutil command needed to fix it.
+  // =============================================================
+
+  function openBulkPdfModal() {
+    if (!_selectedExamId) {
+      setMsg("Select an exam first.", "warn");
+      return;
+    }
+    const rows = _lastRenderedRows || [];
+    const withPdf = rows.filter(_rowPdfRef);
+    const exam =
+      _examDocs.find(function (e) {
+        return e._id === _selectedExamId;
+      }) || {};
+
+    const scope = $("bpScope");
+    if (scope) {
+      scope.innerHTML =
+        "Downloads the PDF report for the <b>" +
+        rows.length +
+        "</b> submission(s) currently listed" +
+        (withPdf.length !== rows.length
+          ? " — <b>" +
+            withPdf.length +
+            "</b> of them have a stored PDF"
+          : "") +
+        ". Change the filters above to narrow the selection.";
+    }
+    // Default name from the exam itself, so the file is identifiable
+    // without the instructor having to think about it.
+    $("bpName").value = [
+      _courseLabel(exam.course),
+      _examTypeLabel(exam.examType),
+      exam.academicYear || "",
+    ]
+      .filter(Boolean)
+      .join(" - ");
+    $("bpError").style.display = "none";
+    $("bpProgress").textContent = "";
+    $("bpProgress").className = "sn-admin-msg";
+    $("bpBarTrack").style.display = "none";
+    $("bpBar").style.width = "0%";
+    $("bpStart").disabled = withPdf.length === 0;
+
+    $("bulkPdfModal").style.display = "";
+    document.body.classList.add("sn-modal-open");
+  }
+
+  function closeBulkPdfModal() {
+    $("bulkPdfModal").style.display = "none";
+    document.body.classList.remove("sn-modal-open");
+  }
+
+  // Returns { url } or { path } for a row, or null when neither is known.
+  //
+  // NOTE: the existing reconstructPdfPath() takes a DOM <tr> and reads
+  // the path back out of rendered table cells. That is fine for the
+  // per-row delete button but wrong here — the bulk download works from
+  // the cached data objects, not the DOM. This mirrors the same Storage
+  // path convention directly from the record's fields.
+  function _rowPdfRef(r) {
+    if (!r) return null;
+    if (r.pdfUrl) return { url: r.pdfUrl };
+    if (r.pdfPath) return { path: r.pdfPath };
+    const group = (r.group || "").trim();
+    const id = (r.studentId || "").trim();
+    const first = (r.firstName || "").trim();
+    const last = (r.lastName || "").trim();
+    if (!group || !id || (!first && !last)) return null;
+    const safe = function (s) {
+      return (s || "").replace(/[^a-zA-Z0-9]/g, "");
+    };
+    const filename =
+      safe(group) + "_" + safe(id) + "_" + safe(first) + "_" + safe(last) + ".pdf";
+    return { path: "submissions/" + group + "/" + filename };
+  }
+
+  // Windows/macOS-safe file name.
+  function _safeFileName(s) {
+    return String(s || "")
+      .replace(/[\\/:*?"<>|]/g, "-")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 120);
+  }
+
+  async function runBulkPdfDownload() {
+    const err = $("bpError");
+    const prog = $("bpProgress");
+    const bar = $("bpBar");
+    err.style.display = "none";
+
+    if (typeof window.JSZip !== "function") {
+      err.style.display = "";
+      err.textContent =
+        "The ZIP library failed to load. Check your network connection and reload the page.";
+      return;
+    }
+
+    const zipName = _safeFileName($("bpName").value);
+    if (!zipName) {
+      err.style.display = "";
+      err.textContent = "Please enter a name for the ZIP file.";
+      return;
+    }
+
+    const rows = (_lastRenderedRows || []).filter(_rowPdfRef);
+    if (!rows.length) {
+      err.style.display = "";
+      err.textContent = "None of the listed submissions has a stored PDF.";
+      return;
+    }
+
+    const btn = $("bpStart");
+    btn.disabled = true;
+    $("bpBarTrack").style.display = "";
+    const zip = new window.JSZip();
+    const failures = [];
+    const usedNames = {};
+    let done = 0;
+
+    for (const r of rows) {
+      const ref = _rowPdfRef(r);
+      // Name each entry so the ZIP is browsable without opening files.
+      let base = _safeFileName(
+        [
+          r.studentId || "no-id",
+          [r.firstName, r.lastName].filter(Boolean).join(" ") || "unknown",
+          r.version ? "v" + r.version : "",
+        ]
+          .filter(Boolean)
+          .join(" - "),
+      );
+      // Two submissions from the same student would otherwise collide
+      // and silently overwrite inside the archive.
+      if (usedNames[base]) {
+        usedNames[base]++;
+        base = base + " (" + usedNames[base] + ")";
+      } else {
+        usedNames[base] = 1;
+      }
+
+      try {
+        let url = ref.url;
+        if (!url) {
+          // eslint-disable-next-line no-await-in-loop
+          url = await firebase.storage().ref(ref.path).getDownloadURL();
+        }
+        // eslint-disable-next-line no-await-in-loop
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        // eslint-disable-next-line no-await-in-loop
+        const blob = await resp.blob();
+        zip.file(base + ".pdf", blob);
+      } catch (e) {
+        console.warn("[bulk-pdf] failed for", r.studentId, e);
+        failures.push((r.studentId || "?") + " — " + e.message);
+      }
+      done++;
+      const pct = Math.round((done / rows.length) * 100);
+      bar.style.width = pct + "%";
+      prog.textContent =
+        "Fetched " + done + " of " + rows.length + " (" + pct + "%)…";
+    }
+
+    const succeeded = rows.length - failures.length;
+    if (!succeeded) {
+      btn.disabled = false;
+      err.style.display = "";
+      err.innerHTML =
+        "Could not download any PDF. This is almost always because the Storage " +
+        "bucket does not allow browser downloads from this site (CORS).<br><br>" +
+        "Ask whoever administers Firebase to run:<br>" +
+        '<code>gsutil cors set cors.json gs://&lt;your-bucket&gt;</code><br><br>' +
+        "with a <code>cors.json</code> allowing <code>GET</code> from this origin. " +
+        'Individual "Load PDF" links keep working meanwhile.';
+      prog.textContent = "";
+      return;
+    }
+
+    prog.textContent = "Building ZIP…";
+    try {
+      const blob = await zip.generateAsync({ type: "blob" }, function (meta) {
+        bar.style.width = Math.round(meta.percent) + "%";
+      });
+      const a = document.createElement("a");
+      const objectUrl = URL.createObjectURL(blob);
+      a.href = objectUrl;
+      a.download = zipName + ".zip";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // Release the blob once the download has been handed to the browser.
+      setTimeout(function () {
+        URL.revokeObjectURL(objectUrl);
+      }, 4000);
+    } catch (e) {
+      console.error(e);
+      btn.disabled = false;
+      err.style.display = "";
+      err.textContent = "Could not build the ZIP: " + e.message;
+      return;
+    }
+
+    btn.disabled = false;
+    closeBulkPdfModal();
+    if (failures.length) {
+      modalAlert({
+        title: "Downloaded with some failures",
+        message:
+          "<b>" +
+          succeeded +
+          "</b> PDF(s) were added to <b>" +
+          escapeHtml(zipName) +
+          ".zip</b>.<br><br><b>" +
+          failures.length +
+          "</b> could not be fetched:<br><code>" +
+          escapeHtml(failures.slice(0, 12).join("\n")) +
+          "</code>" +
+          (failures.length > 12
+            ? "<br>…and " + (failures.length - 12) + " more."
+            : ""),
+      });
+    } else {
+      setMsg(
+        "Downloaded " + succeeded + " PDF(s) as " + zipName + ".zip",
+        "ok",
+      );
+    }
+  }
+
   // ----- Per-problem max-points helpers (Round 2) ---------------
   // Returns a sensible default array of max-points for N coding problems.
   // For the historical 4-problem layout: [10, 15, 15, 20] = 60 total.
@@ -1500,7 +2112,7 @@
     const academicYear = $("efYear").value;
     const semester = _getSemesterToggle();
     const degree = $("efDegree").value;
-    const examType = $("efExamType").value;
+    const examType = ($("efExamType").value || "").trim();
     const duration = parseInt($("efDuration").value, 10);
 
     // Round 3 (July 2026): General English exams are described by a
@@ -1575,7 +2187,13 @@
       return;
     }
     if (!examType) {
-      _showFormError("Please pick an exam type.");
+      _showFormError(
+        "Please type an exam type (for example \"Final Exam\" or \"Retake Exam 2\").",
+      );
+      return;
+    }
+    if (examType.length > 60) {
+      _showFormError("Exam type must be 60 characters or fewer.");
       return;
     }
     // ---- Round 3: General English section validation ----
@@ -2237,10 +2855,20 @@
         tr.querySelector(".sched-start").value = toDatetimeLocal(s.startAt);
       if (s.endAt)
         tr.querySelector(".sched-end").value = toDatetimeLocal(s.endAt);
-      tr.querySelector(".sched-status").innerHTML = statusTag(
-        s.startAt,
-        s.endAt,
-      );
+      const nAllowed = Array.isArray(s.allowedStudents)
+        ? s.allowedStudents.length
+        : 0;
+      tr.querySelector(".sched-status").innerHTML =
+        statusTag(s.startAt, s.endAt) +
+        (nAllowed
+          ? ' <span class="sn-status-badge restricted" title="Only these student IDs may start: ' +
+            escapeHtml(s.allowedStudents.join(", ")) +
+            '">' +
+            nAllowed +
+            " student" +
+            (nAllowed === 1 ? "" : "s") +
+            " only</span>"
+          : "");
       const by = s.scheduledBy;
       tr.querySelector(".sched-by").innerHTML = by
         ? '<span class="sched-by-email" title="' +
@@ -2578,7 +3206,13 @@
     sel.value = versions.indexOf(prev) !== -1 ? prev : "";
   }
 
+  // The rows currently painted in the table. The bulk PDF download
+  // uses exactly this set, so the six filters double as a selection
+  // mechanism: filter to one group, download only that group.
+  let _lastRenderedRows = [];
+
   function renderSubmissions(rows) {
+    _lastRenderedRows = Array.isArray(rows) ? rows.slice() : [];
     const tb = $("subsTbody");
     const subCountNum = $("subCountNum");
     if (!rows.length) {
