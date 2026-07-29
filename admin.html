@@ -286,6 +286,14 @@
                   shown.
                 </p>
               </div>
+              <button
+                type="button"
+                id="bulkScheduleBtn"
+                class="sn-btn-primary sn-btn-compact"
+                title="Set one window for many groups at once"
+              >
+                + Schedule many groups
+              </button>
             </div>
             <div id="scheduleTableWrap" class="admin-table-wrap">
               <table class="admin-table schedule-table">
@@ -444,6 +452,14 @@
               type="button"
             >
               Refresh
+            </button>
+            <button
+              id="bulkPdfBtn"
+              class="sn-btn-primary sn-btn-compact"
+              type="button"
+              title="Download every listed submission's PDF as one ZIP"
+            >
+              ⬇ Download all PDFs
             </button>
             <div id="subCountCard" class="sn-sub-count">
               <div class="scc-num" id="subCountNum">—</div>
@@ -730,16 +746,25 @@
             <label for="efExamType" class="sn-label-sm"
               >Exam Type <span class="sn-req">*</span></label
             >
-            <div class="sn-select-wrap">
-              <select id="efExamType" class="sn-select">
-                <option value="">— Select exam type —</option>
-                <option value="midterm">Midterm Exam</option>
-                <option value="final">Final Exam</option>
-                <option value="resit">Resit Exam</option>
-                <option value="retake1">Retake Exam 1</option>
-                <option value="retake2">Retake Exam 2</option>
-              </select>
-              <span class="sn-chev" aria-hidden="true">▾</span>
+            <input
+              type="text"
+              id="efExamType"
+              class="sn-input"
+              list="efExamTypeSuggestions"
+              maxlength="60"
+              autocomplete="off"
+              placeholder="e.g. Midterm Exam, Retake Exam 2, Make-up Exam"
+            />
+            <datalist id="efExamTypeSuggestions">
+              <option value="Midterm Exam"></option>
+              <option value="Final Exam"></option>
+              <option value="Resit Exam"></option>
+              <option value="Retake Exam 1"></option>
+              <option value="Retake Exam 2"></option>
+            </datalist>
+            <div class="sn-hint-xs">
+              Type any name. Students see exactly this text, and it appears
+              on the PDF report header.
             </div>
           </div>
 
@@ -988,6 +1013,243 @@
             class="sn-btn-primary sn-btn-compact"
           >
             <span class="sn-btn-text">Save Exam</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ====== Bulk Schedule Modal (July 2026) ====== -->
+    <div
+      id="bulkSchedModal"
+      class="sn-exam-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="bulkSchedTitle"
+      style="display: none"
+    >
+      <div class="sn-exam-modal-backdrop"></div>
+      <div class="sn-exam-modal-dialog" role="document">
+        <div class="sn-exam-modal-head">
+          <h3 id="bulkSchedTitle" class="sn-exam-modal-title">
+            Schedule many groups at once
+          </h3>
+          <button
+            type="button"
+            id="bulkSchedClose"
+            class="sn-exam-modal-close"
+            aria-label="Close"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            >
+              <path d="M6 6l12 12M6 18L18 6" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="sn-exam-modal-body">
+          <p class="sn-admin-section-sub" id="bulkSchedScope"></p>
+
+          <div class="sn-form-row">
+            <div class="sn-subhead">
+              <span>1 &middot; Exam window</span>
+              <span class="sn-subhead-hint"
+                >Times use your browser's local timezone</span
+              >
+            </div>
+            <div class="sn-form-grid-2">
+              <div class="sn-form-cell">
+                <label for="bsStart" class="sn-label-xs"
+                  >Start <span class="sn-req">*</span></label
+                >
+                <input type="datetime-local" id="bsStart" class="sn-input" />
+              </div>
+              <div class="sn-form-cell">
+                <label for="bsEnd" class="sn-label-xs"
+                  >End <span class="sn-req">*</span></label
+                >
+                <input type="datetime-local" id="bsEnd" class="sn-input" />
+              </div>
+            </div>
+          </div>
+
+          <div class="sn-form-row">
+            <div class="sn-subhead">
+              <span>2 &middot; Groups</span>
+              <span class="sn-subhead-hint">
+                <button type="button" id="bsSelectAll" class="sn-linkbtn">
+                  Select all
+                </button>
+                &middot;
+                <button type="button" id="bsSelectNone" class="sn-linkbtn">
+                  Clear
+                </button>
+              </span>
+            </div>
+            <div class="sn-group-grid" id="bsGroupGrid"></div>
+            <div class="sn-hint">
+              <b id="bsGroupCount">0</b> group(s) selected
+            </div>
+          </div>
+
+          <div class="sn-form-row">
+            <div class="sn-subhead">
+              <span>3 &middot; Who may take this exam</span>
+            </div>
+            <label class="sn-radio-row">
+              <input
+                type="radio"
+                name="bsAccess"
+                id="bsAccessAll"
+                value="all"
+                checked
+              />
+              <span>
+                <b>All students</b> in the selected groups
+              </span>
+            </label>
+            <label class="sn-radio-row">
+              <input
+                type="radio"
+                name="bsAccess"
+                id="bsAccessSome"
+                value="some"
+              />
+              <span>
+                <b>Only specific students</b>, listed by student ID
+              </span>
+            </label>
+
+            <div id="bsAllowedWrap" style="display: none">
+              <div class="sn-allow-add">
+                <input
+                  type="text"
+                  id="bsAllowedInput"
+                  class="sn-input"
+                  inputmode="numeric"
+                  maxlength="12"
+                  placeholder="Type a student ID, e.g. 250239"
+                  autocomplete="off"
+                />
+                <button
+                  type="button"
+                  id="bsAllowedAdd"
+                  class="sn-btn-secondary sn-btn-compact"
+                >
+                  Add
+                </button>
+              </div>
+              <div class="sn-hint-xs">
+                Press Enter to add. Paste or type several IDs separated by
+                commas, spaces or new lines.
+              </div>
+              <div class="sn-allow-list" id="bsAllowedList"></div>
+              <div class="sn-hint">
+                <b id="bsAllowedCount">0</b> student(s) on the allow-list.
+                Students not on the list will be blocked from starting this
+                exam.
+              </div>
+            </div>
+          </div>
+
+          <div id="bsError" class="sn-login-error" style="display: none"></div>
+          <div id="bsProgress" class="sn-admin-msg" aria-live="polite"></div>
+        </div>
+
+        <div class="sn-exam-modal-foot">
+          <button type="button" id="bsCancel" class="sn-btn-secondary">
+            Cancel
+          </button>
+          <button
+            type="button"
+            id="bsSave"
+            class="sn-btn-primary sn-btn-compact"
+          >
+            <span class="sn-btn-text">Schedule selected groups</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== Bulk PDF Download Modal (July 2026) ====== -->
+    <div
+      id="bulkPdfModal"
+      class="sn-exam-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="bulkPdfTitle"
+      style="display: none"
+    >
+      <div class="sn-exam-modal-backdrop"></div>
+      <div class="sn-exam-modal-dialog sn-modal-narrow" role="document">
+        <div class="sn-exam-modal-head">
+          <h3 id="bulkPdfTitle" class="sn-exam-modal-title">
+            Download all PDF reports
+          </h3>
+          <button
+            type="button"
+            id="bulkPdfClose"
+            class="sn-exam-modal-close"
+            aria-label="Close"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            >
+              <path d="M6 6l12 12M6 18L18 6" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="sn-exam-modal-body">
+          <p class="sn-admin-section-sub" id="bpScope"></p>
+
+          <div class="sn-form-row">
+            <label for="bpName" class="sn-label-sm"
+              >ZIP file name <span class="sn-req">*</span></label
+            >
+            <div class="sn-zip-name">
+              <input
+                type="text"
+                id="bpName"
+                class="sn-input"
+                maxlength="80"
+                autocomplete="off"
+                placeholder="e.g. General English 2 — Retake 2"
+              />
+              <span class="sn-zip-ext">.zip</span>
+            </div>
+            <div class="sn-hint-xs">
+              Characters that aren't allowed in file names will be replaced
+              with "-".
+            </div>
+          </div>
+
+          <div id="bpError" class="sn-login-error" style="display: none"></div>
+          <div id="bpProgress" class="sn-admin-msg" aria-live="polite"></div>
+          <div class="sn-progress-track" id="bpBarTrack" style="display: none">
+            <div class="sn-progress-bar" id="bpBar"></div>
+          </div>
+        </div>
+
+        <div class="sn-exam-modal-foot">
+          <button type="button" id="bpCancel" class="sn-btn-secondary">
+            Cancel
+          </button>
+          <button
+            type="button"
+            id="bpStart"
+            class="sn-btn-primary sn-btn-compact"
+          >
+            <span class="sn-btn-text">Download ZIP</span>
           </button>
         </div>
       </div>
@@ -1253,11 +1515,12 @@
     </div>
 
     <script src="js/questions/coding-bank.js?v=20260602a"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="js/courses.js?v=20260729a"></script>
     <script src="js/questions/english-bank.js?v=20260729a"></script>
     <script src="js/questions/math-bank.js?v=20260729a"></script>
     <script src="js/proctoring-admin.js?v=20260714a"></script>
     <script src="js/header-scroll.js?v=20260521u"></script>
-    <script src="js/admin.js?v=20260729a"></script>
+    <script src="js/admin.js?v=20260729b"></script>
   </body>
 </html>

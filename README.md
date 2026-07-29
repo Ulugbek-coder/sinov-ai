@@ -30,6 +30,9 @@ Sinov AI is a production-ready exam platform with four AI-powered features layer
 - Tab-switch / window-blur anti-cheat with structured event logging.
 - Multi-instructor admin dashboard with PDF download, live submission view, and AI-graded score override.
 - **Submission filtering** by group, upload method, student ID, exam taker's full name, exam version, and final grade (greater/less than, or equal to a threshold).
+- **Bulk scheduling** — apply one exam window to many groups at once, optionally restricting the exam to an allow-list of student IDs (enforced on the student side, not just recorded).
+- **Bulk PDF export** — download every listed submission's report as a single named ZIP. The submission filters double as the selection: filter to one group, download that group.
+- **Free-text exam types** — type any exam name ("Make-up Exam", "Retake Exam 2"); students see only the exam types that actually exist for their course.
 - Trilingual PDF reports — every submission archived with proctoring summary, AI grades, and code with edit-highlighting.
 
 ---
