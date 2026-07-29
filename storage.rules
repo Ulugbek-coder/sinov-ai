@@ -3,11 +3,59 @@ service firebase.storage {
   match /b/{bucket}/o {
 
     // -------------------------------------------------------------
-    // /submissions/{group}/{file}
+    // /submissions/{course}/{examType}/{group}/{examDate}/{file}
+    //   Round 6 (July 2026) — CURRENT layout.
+    //
+    //   Reports are scoped by subject, exam, group and date. The old
+    //   flat /submissions/{group}/{file} layout gave every exam a
+    //   student ever sat the SAME object path, so a second submission
+    //   either overwrote the first or (because `allow update` is false)
+    //   was rejected outright. Both outcomes lost data.
+    //
     //   CREATE: any authenticated user (anonymous students) may upload
-    //           a PDF under 5 MB to one of the 17 known group paths.
-    //   READ:   instructors only (password auth).
-    //   UPDATE/DELETE: forbidden from the client.
+    //           a PDF under 5 MB, provided {group} is a known group.
+    //           course/examType/examDate are free-form slugs generated
+    //           by the client; they are organisational, not a security
+    //           boundary — {group} remains the control point, exactly
+    //           as in the legacy rule below.
+    //   READ / DELETE: instructors only (password auth).
+    //   UPDATE: forbidden — filenames carry a timestamp, so a genuine
+    //           resubmission always writes a NEW object rather than
+    //           replacing an existing one.
+    // -------------------------------------------------------------
+    match /submissions/{course}/{examType}/{group}/{examDate}/{fileName} {
+      allow create: if
+        request.auth != null
+        && group in [
+             'FM1', 'FM2', 'FM3', 'FM4', 'FM5', 'FM6', 'FM7',
+             'FIT1', 'FIT2', 'FIT3', 'FIT4', 'FIT5', 'FIT6',
+             'FAR1', 'FAR2', 'FAR3'
+           ]
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
+
+      allow read: if
+        request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'password';
+
+      allow delete: if
+        request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'password';
+
+      allow update: if false;
+    }
+
+    // -------------------------------------------------------------
+    // /submissions/{group}/{file}
+    //   LEGACY layout (pre-July 2026). Retained so reports uploaded
+    //   before the path change stay readable and deletable from the
+    //   admin dashboard — their pdfPath is already recorded in
+    //   Firestore and still points here.
+    //
+    //   `create` is intentionally left in place: if a client is served
+    //   from cache mid-deploy and uses the old path, we would rather
+    //   accept the upload than lose a student's exam. New clients
+    //   never write here.
     // -------------------------------------------------------------
     match /submissions/{group}/{fileName} {
       allow create: if

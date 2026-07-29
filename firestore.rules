@@ -43,6 +43,37 @@ service cloud.firestore {
     }
 
     // -------------------------------------------------------------
+    // Allow-list enforcement helpers (July 2026)
+    //
+    // The bulk-scheduling tool can restrict an exam to specific student
+    // IDs, stored as `allowedStudents` on the schedule document. Until
+    // now that was enforced only in app.js — i.e. in the browser, where
+    // a determined student can edit it away. These helpers make the
+    // restriction binding at write time.
+    //
+    // Deliberately FAIL OPEN at every step: a missing examId (legacy
+    // submissions), a missing schedule document, a missing or empty
+    // allowedStudents array all permit the write. The rule only ever
+    // blocks the one case it is meant to — a restricted exam whose
+    // allow-list does not contain this student. Nothing that submits
+    // successfully today can start failing because of this.
+    //
+    // Cost: up to one extra document read per submission create.
+    // -------------------------------------------------------------
+    function schedulePath() {
+      return /databases/$(database)/documents/exam_schedules/$(request.resource.data.examId + '__' + request.resource.data.group);
+    }
+
+    function scheduleAllowsStudent() {
+      return !('examId' in request.resource.data)
+        || request.resource.data.examId == null
+        || !exists(schedulePath())
+        || !('allowedStudents' in get(schedulePath()).data)
+        || get(schedulePath()).data.allowedStudents.size() == 0
+        || request.resource.data.studentId in get(schedulePath()).data.allowedStudents;
+    }
+
+    // -------------------------------------------------------------
     // /submissions/{autoId}
     //   Students are authenticated anonymously, so they may CREATE a
     //   submission document. They cannot read/update/delete anyone's.
@@ -64,7 +95,9 @@ service cloud.firestore {
            ]
         && request.resource.data.version in ['A', 'B', 'C', 'D']
         && request.resource.data.studentId is string
-        && request.resource.data.studentId.matches('^[0-9]{6}$');
+        && request.resource.data.studentId.matches('^[0-9]{6}$')
+        // July 2026: honour the per-schedule student allow-list.
+        && scheduleAllowsStudent();
 
       allow read: if
         request.auth != null

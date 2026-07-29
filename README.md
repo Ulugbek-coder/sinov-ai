@@ -197,6 +197,48 @@ places at every aggregation step so accumulating values like 2.5 across
 thirty questions can't surface floating-point artefacts, and whole
 numbers still display as whole numbers (`40`, not `40.00`).
 
+## Submission storage layout
+
+PDF reports are stored in Firebase Storage scoped by subject, exam,
+group and date:
+
+```
+submissions/{course}/{examType}/{group}/{YYYY-MM-DD}/
+    {GROUP}_{ID}_{First}_{Last}_v{Version}_{HHmmss}.pdf
+```
+
+Every level is load-bearing. A student sits several subjects, several
+exams per subject (Midterm, Final, Resit, Retake 1, Retake 2), and may
+resubmit. The pre-July-2026 layout was `submissions/{group}/{file}`,
+which contained no subject, exam or date — so every exam a student ever
+sat resolved to the same object and only one report survived. The
+timestamp in the filename guarantees a resubmission never replaces an
+earlier attempt.
+
+`storage.rules` keeps a rule for the legacy flat layout so reports
+uploaded before the change stay readable and deletable; their
+`pdfPath` is recorded in Firestore and still resolves.
+
+## Security notes
+
+`firestore.rules` enforces the per-schedule student allow-list at write
+time, so restricting an exam to specific student IDs is binding rather
+than advisory. It fails open at every step (missing `examId`, missing
+schedule document, absent or empty `allowedStudents`), so it can only
+ever block the case it is meant to.
+
+Two known limitations, both pre-existing and both requiring
+architectural changes rather than rule edits:
+
+- `/exam_schedules` is world-readable, because the welcome page needs
+  the exam window before a student authenticates. That makes
+  `allowedStudents` readable too. Student IDs are low-sensitivity, but
+  the lists can be harvested.
+- Question banks ship to the browser as JavaScript, including the
+  `correct` index for every question. Any student who opens developer
+  tools can read the answer key. Server-side question delivery and
+  scoring would be required to close this.
+
 ## Setup
 
 1. **Firebase**
