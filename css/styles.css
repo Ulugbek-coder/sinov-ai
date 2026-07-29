@@ -10625,18 +10625,6 @@ body.exam-body {
   transform: translateY(-1px);
 }
 
-/* Left accent bar — readable even for users who can't distinguish the
-   blue tint from white, so selection isn't conveyed by colour alone. */
-.sn-exam-card.selected::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 5px;
-  border-radius: var(--sn-radius-lg) 0 0 var(--sn-radius-lg);
-  background: var(--sn-indigo);
-}
 
 .sn-exam-card.selected .sn-exam-card-title {
   color: var(--sn-indigo-dark);
