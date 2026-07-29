@@ -907,6 +907,323 @@ window.SUBJECT_BANKS.analytic_geometry = [
 ];
 
 // ---------------------------------------------------------------
+// DISCRETE MATHEMATICS
+// Propositional logic · sets · functions · sequences and sums ·
+// modular arithmetic · counting
+// ---------------------------------------------------------------
+// SOURCE AND VERIFICATION
+//
+// Transcribed from the instructor's paired Uzbek and Russian retake
+// papers, in which the correct option is shaded green (fill 92D050).
+// Both documents were parsed independently and their green markings
+// produced the SAME answer key for all 25 questions:
+//
+//     C B A A B C B D B A C A A B C C D B C B B D D B D
+//
+// Every answer was then also derived from first principles — truth
+// tables evaluated, set cardinalities counted, compositions expanded,
+// the recurrence unrolled, the sum and product evaluated, mod/div
+// computed with floored semantics, and the counting arguments worked
+// through. All 25 agree. So each key rests on three independent
+// sources: the Uzbek paper, the Russian paper, and the mathematics.
+//
+// NOTE ON THE UZBEK TEXT: several stems in the Uzbek document use
+// Word equation objects whose set braces and function parentheses do
+// not survive text extraction ("f :a, b, c, d→1, 2, 3" for
+// "f : {a, b, c, d} → {1, 2, 3}", "fa=4" for "f(a) = 4"). The Russian
+// paper types the same expressions as plain text and is unambiguous,
+// so the Uzbek wording below is restored to match it. Q15-Q17 carry
+// display equations that live outside the paragraph text entirely;
+// those were recovered from the OMML and written inline.
+// ---------------------------------------------------------------
+window.SUBJECT_BANKS.discrete_math = [
+  {
+    en: 'Which answer correctly states the negation of the following proposition: "Sardor\'s smartphone has at least 32 GB of memory"?',
+    uz: "Quyidagi mulohazaning inkori qaysi javobda to'g'ri keltirilgan: “Sardorning smartfoni kamida 32 GB xotiraga ega”.",
+    ru: "В каком варианте ответа правильно приведено отрицание следующего суждения: «Смартфон Сардора имеет не менее 32 ГБ памяти»?",
+    opts: [
+      {
+        en: "Sardor's smartphone has more than 32 GB of memory",
+        uz: "Sardorning smartfoni 32 GB dan ko'p xotiraga ega",
+        ru: "Смартфон Сардора имеет более 32 ГБ памяти",
+      },
+      {
+        en: "Sardor's smartphone has 32 GB of memory",
+        uz: "Sardorning smartfoni 32 GB xotiraga ega",
+        ru: "Смартфон Сардора имеет 32 ГБ памяти",
+      },
+      {
+        en: "Sardor's smartphone has less than 32 GB of memory",
+        uz: "Sardorning smartfoni 32 GB dan kam xotiraga ega",
+        ru: "Смартфон Сардора имеет менее 32 ГБ памяти",
+      },
+      {
+        en: "Sardor's smartphone has 64 GB of memory",
+        uz: "Sardorning smartfoni 64 GB xotiraga ega",
+        ru: "Смартфон Сардора имеет 64 ГБ памяти",
+      },
+    ],
+    correct: 2,
+  },
+  {
+    en: "Let p and q be propositions where p is True and q is False. Find the value of the conjunction p ∧ q.",
+    uz: "p va q lar mulohazalar bo'lib, p ning qiymati rost, q ning qiymati esa yolg'on. p ∧ q konyunksiyaning qiymatini toping.",
+    ru: "Пусть p и q — высказывания, причём значение p — Истина, а значение q — Ложь. Найдите значение конъюнкции p ∧ q.",
+    opts: [
+      { en: "True", uz: "Rost", ru: "Истина" },
+      { en: "False", uz: "Yolg'on", ru: "Ложь" },
+      {
+        en: "Cannot be determined",
+        uz: "Aniqlab bo'lmaydi",
+        ru: "Невозможно определить",
+      },
+      { en: "I don't know", uz: "Bilmayman", ru: "Не знаю" },
+    ],
+    correct: 1,
+  },
+  {
+    en: "Let p and q be propositions where p is False and q is True. Find the value of the disjunction p ∨ q.",
+    uz: "p va q lar mulohazalar bo'lib, p ning qiymati yolg'on, q ning qiymati esa rost. p ∨ q dizyunksiyaning qiymatini toping.",
+    ru: "Пусть p и q — высказывания, причём значение p — Ложь, а значение q — Истина. Найдите значение дизъюнкции p ∨ q.",
+    opts: [
+      { en: "True", uz: "Rost", ru: "Истина" },
+      { en: "False", uz: "Yolg'on", ru: "Ложь" },
+      {
+        en: "Cannot be determined",
+        uz: "Aniqlab bo'lmaydi",
+        ru: "Невозможно определить",
+      },
+      { en: "I don't know", uz: "Bilmayman", ru: "Не знаю" },
+    ],
+    correct: 0,
+  },
+  {
+    en: "Let p and q be propositions where p is True and q is False. Find the value of the proposition p ∨ ¬q.",
+    uz: "p va q lar mulohazalar bo'lib, p ning qiymati rost, q ning qiymati esa yolg'on. p ∨ ¬q mulohazaning qiymatini toping.",
+    ru: "Пусть p и q — высказывания, причём значение p — Истина, а значение q — Ложь. Найдите значение высказывания p ∨ ¬q.",
+    opts: [
+      { en: "True", uz: "Rost", ru: "Истина" },
+      { en: "False", uz: "Yolg'on", ru: "Ложь" },
+      {
+        en: "Cannot be determined",
+        uz: "Aniqlab bo'lmaydi",
+        ru: "Невозможно определить",
+      },
+      { en: "I don't know", uz: "Bilmadim", ru: "Не знаю" },
+    ],
+    correct: 0,
+  },
+  {
+    en: "Let p and q be propositions where p is True and q is False. Find the value of the proposition (p ∨ ¬q) → (p ∧ q).",
+    uz: "p va q lar mulohazalar bo'lib, p ning qiymati rost, q ning qiymati esa yolg'on. (p ∨ ¬q) → (p ∧ q) mulohazaning qiymatini toping.",
+    ru: "Пусть p и q — высказывания, причём значение p — Истина, а значение q — Ложь. Найдите значение высказывания (p ∨ ¬q) → (p ∧ q).",
+    opts: [
+      { en: "True", uz: "Rost", ru: "Истина" },
+      { en: "False", uz: "Yolg'on", ru: "Ложь" },
+      {
+        en: "Cannot be determined",
+        uz: "Aniqlab bo'lmaydi",
+        ru: "Невозможно определить",
+      },
+      { en: "I don't know", uz: "Bilmadim", ru: "Не знаю" },
+    ],
+    correct: 1,
+  },
+  {
+    en: "Let A be the set of odd natural numbers less than 10. Find the cardinality of A (the number of elements), that is |A|.",
+    uz: "A — 10 dan kichik toq natural sonlar to'plami bo'lsin. A to'plamning quvvatini (elementlar sonini), ya'ni |A| ni toping.",
+    ru: "Пусть A — множество нечётных натуральных чисел, меньших 10. Найдите мощность множества A (число элементов), то есть |A|.",
+    opts: ["3", "4", "5", "6"],
+    correct: 2,
+  },
+  {
+    en: "How many elements does the power set of {0, 1, 2} contain?",
+    uz: "{0, 1, 2} to'plamning qism to'plamlari to'plamida nechta element bor?",
+    ru: "Сколько элементов содержит множество всех подмножеств множества {0, 1, 2}?",
+    opts: ["4", "8", "16", "6"],
+    correct: 1,
+  },
+  {
+    en: "How many subsets does the set {0, 1} have?",
+    uz: "{0, 1} to'plamning nechta qism to'plami mavjud?",
+    ru: "Сколько подмножеств имеет множество {0, 1}?",
+    opts: ["1", "2", "3", "4"],
+    correct: 3,
+  },
+  {
+    en: "For the sets A = {1, 2, 3, 4, 5} and B = {0, 3, 6}, how many elements does the union A ∪ B have?",
+    uz: "A = {1, 2, 3, 4, 5} va B = {0, 3, 6} to'plamlar uchun A ∪ B ning nechta elementi bor?",
+    ru: "Для множеств A = {1, 2, 3, 4, 5} и B = {0, 3, 6} найдите количество элементов объединения A ∪ B.",
+    opts: ["8", "7", "6", "5"],
+    correct: 1,
+  },
+  {
+    en: "For the sets A = {1, 2, 3, 4, 5} and B = {0, 3, 6}, how many elements does the intersection A ∩ B have?",
+    uz: "A = {1, 2, 3, 4, 5} va B = {0, 3, 6} to'plamlar uchun A ∩ B ning nechta elementi bor?",
+    ru: "Для множеств A = {1, 2, 3, 4, 5} и B = {0, 3, 6} найдите количество элементов пересечения A ∩ B.",
+    opts: ["1", "2", "3", "4"],
+    correct: 0,
+  },
+  {
+    en: "The function f : {a, b, c, d} → {1, 2, 3, 4, 5} is defined by f(a) = 4, f(b) = 5, f(c) = 1 and f(d) = 3. Which of the following statements is true for this function?",
+    uz: "f : {a, b, c, d} → {1, 2, 3, 4, 5} funksiya f(a) = 4, f(b) = 5, f(c) = 1 va f(d) = 3 lar bilan aniqlangan. Bu funksiya uchun quyidagi mulohazalardan qaysi biri rost?",
+    ru: "Функция f : {a, b, c, d} → {1, 2, 3, 4, 5} задана значениями f(a) = 4, f(b) = 5, f(c) = 1 и f(d) = 3. Какое из следующих утверждений верно для этой функции?",
+    opts: [
+      {
+        en: "f is surjective",
+        uz: "f funksiya suryektiv",
+        ru: "Функция f сюръективна",
+      },
+      {
+        en: "f is bijective",
+        uz: "f funksiya biyektiv",
+        ru: "Функция f биективна",
+      },
+      {
+        en: "f is injective",
+        uz: "f funksiya inyektiv",
+        ru: "Функция f инъективна",
+      },
+      {
+        en: "f is neither surjective nor injective",
+        uz: "f funksiya suryektiv ham inyektiv ham emas",
+        ru: "Функция f не является ни сюръективной, ни инъективной",
+      },
+    ],
+    correct: 2,
+  },
+  {
+    en: "The function f : {a, b, c, d} → {1, 2, 3} is defined by f(a) = 3, f(b) = 2, f(c) = 1 and f(d) = 3. Which of the following statements is true for this function?",
+    uz: "f : {a, b, c, d} → {1, 2, 3} funksiya f(a) = 3, f(b) = 2, f(c) = 1 va f(d) = 3 lar bilan aniqlangan. Bu funksiya uchun quyidagi mulohazalardan qaysi biri rost?",
+    ru: "Функция f : {a, b, c, d} → {1, 2, 3} задана значениями f(a) = 3, f(b) = 2, f(c) = 1 и f(d) = 3. Какое из следующих утверждений верно для этой функции?",
+    opts: [
+      {
+        en: "f is surjective",
+        uz: "f funksiya suryektiv",
+        ru: "Функция f сюръективна",
+      },
+      {
+        en: "f is bijective",
+        uz: "f funksiya biyektiv",
+        ru: "Функция f биективна",
+      },
+      {
+        en: "f is injective",
+        uz: "f funksiya inyektiv",
+        ru: "Функция f инъективна",
+      },
+      {
+        en: "f is neither surjective nor injective",
+        uz: "f funksiya suryektiv ham inyektiv ham emas",
+        ru: "Функция f не является ни сюръективной, ни инъективной",
+      },
+    ],
+    correct: 0,
+  },
+  {
+    en: "The functions f and g from the set of integers to the set of integers are given by f(x) = 2x + 3 and g(x) = 3x + 2. Find the composition f ∘ g.",
+    uz: "Butun sonlar to'plamini butun sonlar to'plamiga akslantiruvchi f va g funksiyalar f(x) = 2x + 3 va g(x) = 3x + 2 lar orqali berilgan. f va g ning kompozitsiyasini, ya'ni f ∘ g ni aniqlang.",
+    ru: "Функции f и g, отображающие множество целых чисел в множество целых чисел, заданы формулами f(x) = 2x + 3 и g(x) = 3x + 2. Найдите композицию функций f и g, то есть f ∘ g.",
+    opts: [
+      "(f ∘ g)(x) = 6x + 7",
+      "(f ∘ g)(x) = 6x + 11",
+      "(f ∘ g)(x) = 5x + 5",
+      "(f ∘ g)(x) = −x + 1",
+    ],
+    correct: 0,
+  },
+  {
+    en: "The functions f and g from the set of integers to the set of integers are given by f(x) = 2x + 3 and g(x) = 3x + 2. Find the composition g ∘ f.",
+    uz: "Butun sonlar to'plamini butun sonlar to'plamiga akslantiruvchi f va g funksiyalar f(x) = 2x + 3 va g(x) = 3x + 2 lar orqali berilgan. g va f ning kompozitsiyasini, ya'ni g ∘ f ni aniqlang.",
+    ru: "Функции f и g, отображающие множество целых чисел в множество целых чисел, заданы формулами f(x) = 2x + 3 и g(x) = 3x + 2. Найдите композицию функций g и f, то есть g ∘ f.",
+    opts: [
+      "(g ∘ f)(x) = 6x + 7",
+      "(g ∘ f)(x) = 6x + 11",
+      "(g ∘ f)(x) = 5x + 5",
+      "(g ∘ f)(x) = −x + 1",
+    ],
+    correct: 1,
+  },
+  {
+    en: "The sequence a<sub>n</sub> satisfies the recurrence relation a<sub>n</sub> = a<sub>n−1</sub> + 3 for n = 1, 2, 3, … . If a<sub>0</sub> = 2, find a<sub>3</sub>.",
+    uz: "a<sub>n</sub> ketma-ketlik uchun a<sub>n</sub> = a<sub>n−1</sub> + 3 rekurrent munosabat n = 1, 2, 3, … uchun o'rinli. Agar a<sub>0</sub> = 2 bo'lsa, a<sub>3</sub> ni toping.",
+    ru: "Для последовательности a<sub>n</sub> выполнено рекуррентное соотношение a<sub>n</sub> = a<sub>n−1</sub> + 3 для n = 1, 2, 3, … . Если a<sub>0</sub> = 2, найдите a<sub>3</sub>.",
+    opts: ["5", "8", "11", "14"],
+    correct: 2,
+  },
+  {
+    en: "Find the value of the sum: Σ<sub>j=1</sub><sup>5</sup> j².",
+    uz: "Yig'indining qiymatini toping: Σ<sub>j=1</sub><sup>5</sup> j².",
+    ru: "Найдите значение суммы: Σ<sub>j=1</sub><sup>5</sup> j².",
+    opts: ["45", "50", "55", "60"],
+    correct: 2,
+  },
+  {
+    en: "Find the value of the product: Π<sub>i=0</sub><sup>10</sup> i.",
+    uz: "Ko'paytmaning qiymatini toping: Π<sub>i=0</sub><sup>10</sup> i.",
+    ru: "Найдите значение произведения: Π<sub>i=0</sub><sup>10</sup> i.",
+    opts: ["100", "10", "1", "0"],
+    correct: 3,
+  },
+  {
+    en: "Find the value of the expression: −17 mod 2.",
+    uz: "Ifodaning qiymatini toping: −17 mod 2.",
+    ru: "Найдите значение выражения: −17 mod 2.",
+    opts: ["0", "1", "−1", "−2"],
+    correct: 1,
+  },
+  {
+    en: "Find the value of the expression: 199 mod 19.",
+    uz: "Ifodaning qiymatini toping: 199 mod 19.",
+    ru: "Найдите значение выражения: 199 mod 19.",
+    opts: ["10", "19", "9", "199"],
+    correct: 2,
+  },
+  {
+    en: "If a = 228 and b = 119, find the value of the expression a div b.",
+    uz: "Agar a = 228 va b = 119 bo'lsa, a div b ifodaning qiymatini toping.",
+    ru: "Если a = 228 и b = 119, найдите значение выражения a div b.",
+    opts: ["0", "1", "2", "3"],
+    correct: 1,
+  },
+  {
+    en: "If a = −111 and b = 99, find the value of the expression a div b.",
+    uz: "Agar a = −111 va b = 99 bo'lsa, a div b ifodaning qiymatini toping.",
+    ru: "Если a = −111 и b = 99, найдите значение выражения a div b.",
+    opts: ["−1", "−2", "0", "1"],
+    correct: 1,
+  },
+  {
+    en: "A data center contains 12 computers. Each of these computers has 10 ports. How many different computer ports are there in this data center in total?",
+    uz: "Ma'lumotlar markazida (data center) 12 ta kompyuter bor. Ushbu kompyuterlarning har birida 10 tadan port mavjud. Ushbu ma'lumotlar markazida jami nechta har xil kompyuter porti bor?",
+    ru: "В дата-центре имеется 12 компьютеров. На каждом из этих компьютеров есть по 10 портов. Сколько всего различных компьютерных портов в этом дата-центре?",
+    opts: ["10", "12", "22", "120"],
+    correct: 3,
+  },
+  {
+    en: "A student may submit a computer project by choosing one project from three lists. These three lists contain 23, 15 and 19 projects respectively. No project appears in more than one list. How many different projects are available to choose from in total?",
+    uz: "Talaba uchta ro'yxatdagi loyihalardan birini tanlab, kompyuter loyihasini topshirishi mumkin. Ushbu uchta ro'yxatda mos ravishda 23, 15 va 19 ta loyiha bor. Hech bir loyiha bir vaqtning o'zida bittadan ortiq ro'yxatda takrorlanmaydi. Tanlab olish uchun jami nechta turli loyiha mavjud?",
+    ru: "Студент может сдать компьютерный проект, выбрав один проект из трёх списков. В этих трёх списках содержится 23, 15 и 19 проектов соответственно. Ни один проект не повторяется более чем в одном списке. Сколько всего различных проектов доступно для выбора?",
+    opts: ["38", "34", "42", "57"],
+    correct: 3,
+  },
+  {
+    en: "In how many ways can the winners of first, second and third place be chosen from among 10 people taking part in a competition?",
+    uz: "Tanlovda qatnashayotgan 10 kishi orasidan birinchi, ikkinchi va uchinchi o'rin g'oliblarini tanlashning nechta usuli bor?",
+    ru: "Сколькими способами из 10 человек, участвующих в конкурсе, можно выбрать победителей, занявших первое, второе и третье места?",
+    opts: ["1000", "720", "7200", "10"],
+    correct: 1,
+  },
+  {
+    en: "In how many ways can 5 players be chosen from a 10-member tennis team to travel to a competition at another school?",
+    uz: "Boshqa maktabdagi musobaqaga borish uchun 10 kishilik tennis jamoasidan 5 ta o'yinchini tanlab olishning nechta usuli bor?",
+    ru: "Сколькими способами можно выбрать 5 игроков из теннисной команды, состоящей из 10 человек, для поездки на соревнования в другую школу?",
+    opts: ["15", "50", "P(10, 5)", "C(10, 5)"],
+    correct: 3,
+  },
+];
+
+// ---------------------------------------------------------------
 // Normalizer
 // ---------------------------------------------------------------
 // Expands bare-string options into {en,uz,ru} triples (a number or a
