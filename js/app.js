@@ -598,6 +598,41 @@ function buildEnglishExam(course, sections, seed) {
   return buildBalancedOptionOrders(selected, rng, (seed || "english") + "_en");
 }
 
+// ===============================================================
+// SUBJECT BANK EXAMS (July 2026)
+// ---------------------------------------------------------------
+// Multiple-choice-only subjects (Calculus 1/2, Mathematical Analysis
+// 1/2, Analytical Geometry) draw from a single flat bank named by the
+// course registry's `bankKey`. Several courses may share one bank —
+// Calculus 1 and Mathematical Analysis 1 both use `calculus1`.
+//
+// Selection is a seeded shuffle of the bank followed by the same
+// balanced option ordering the C++ exams use, so:
+//   - each exam VERSION gets a different question order (the version's
+//     mcSeed differs), and a different set when the bank is larger
+//     than the requested count;
+//   - correct answers are spread evenly across positions A-D rather
+//     than sitting at index 0 where the source paper printed them.
+// ===============================================================
+function buildSubjectExam(bankKey, count, seed) {
+  const bank =
+    typeof window.snSubjectBank === "function"
+      ? window.snSubjectBank(bankKey)
+      : [];
+  if (!bank.length) return null;
+
+  const rng = seededRNG(seed || "subject_default");
+  const want = Math.min(count > 0 ? count : bank.length, bank.length);
+  const selected = seededShuffle(bank, rng)
+    .slice(0, want)
+    .map(function (q) {
+      // Shallow copy so per-exam fields (points) never mutate the bank.
+      return Object.assign({}, q);
+    });
+
+  return buildBalancedOptionOrders(selected, rng, (seed || "subject") + "_sub");
+}
+
 // Human labels for the section dividers rendered on the exam page.
 function englishSectionLabel(key) {
   switch (key) {
@@ -1006,6 +1041,11 @@ async function startExam() {
   // from their own banks. Every other course keeps the original
   // pooled-bank selection untouched.
   const isEnglishExam = examCourseIsSectioned(cfg.course);
+  // Which flat question bank (if any) this course draws from.
+  const subjectBankKey =
+    typeof window.snCourseBankKey === "function" && !isEnglishExam
+      ? window.snCourseBankKey(cfg.course)
+      : null;
 
   if (isEnglishExam) {
     const result = buildEnglishExam(
@@ -1026,6 +1066,30 @@ async function startExam() {
     mcQuestions = result.selected;
     optionOrders = result.optionOrders;
     userAnswers = new Array(mcQuestions.length).fill(-1);
+  } else if (subjectBankKey && mcCount > 0) {
+    // Bank-backed multiple-choice subject (Calculus, Mathematical
+    // Analysis, Analytical Geometry, ...).
+    const result = buildSubjectExam(subjectBankKey, mcCount, mcSeed);
+    if (!result || !result.selected.length) {
+      if (startBtn) {
+        startBtn.disabled = false;
+        startBtn.textContent = originalText;
+      }
+      alert(
+        "This exam's question bank could not be loaded. Please contact your instructor.",
+      );
+      return;
+    }
+    mcQuestions = result.selected;
+    optionOrders = result.optionOrders;
+    userAnswers = new Array(mcQuestions.length).fill(-1);
+    const subjPts =
+      typeof cfg.pointsPerCorrectMc === "number" && cfg.pointsPerCorrectMc > 0
+        ? cfg.pointsPerCorrectMc
+        : 2;
+    mcQuestions = mcQuestions.map(function (q) {
+      return Object.assign({}, q, { points: subjPts });
+    });
   } else if (mcCount === 0) {
     mcQuestions = [];
     optionOrders = [];
