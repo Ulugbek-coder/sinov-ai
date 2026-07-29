@@ -10558,3 +10558,47 @@ body.exam-body {
   margin-left: 6px;
   cursor: help;
 }
+
+/* ==============================================================
+   Excel export button — modern orange.
+   Distinguished from the blue "Download all PDFs" primary so the two
+   export actions are told apart at a glance, and warm enough to read
+   as an action rather than a warning.
+   ============================================================== */
+.sn-btn-excel {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(234, 88, 12, 0.28);
+  transition:
+    filter 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.06s ease;
+}
+.sn-btn-excel:hover:not(:disabled) {
+  filter: brightness(1.06);
+  box-shadow: 0 3px 10px rgba(234, 88, 12, 0.34);
+}
+.sn-btn-excel:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 1px 2px rgba(234, 88, 12, 0.28);
+}
+.sn-btn-excel:focus-visible {
+  outline: 2px solid #c2410c;
+  outline-offset: 2px;
+}
+.sn-btn-excel:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
