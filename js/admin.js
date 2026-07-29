@@ -1188,6 +1188,77 @@
     loadSubmissions();
     // Per-exam refresh status (Feature: per-exam seeds)
     loadRefreshStatus();
+    // The Refresh section describes what a refresh WOULD do, which is
+    // exam-specific — and its result message belongs to whichever exam
+    // was refreshed. Both must follow the selection.
+    updateRefreshSectionCopy();
+    setRefreshMsg("", "");
+  }
+
+  // Rewrites the "Refresh Exam Questions" description for the selected
+  // exam.
+  //
+  // This paragraph used to be static HTML claiming every exam had
+  // "version (A and B)" and "coding problems". That was wrong for any
+  // exam with a different version set, and actively misleading for the
+  // General English and mathematics exams, which have no coding part at
+  // all — the section appeared not to update when you switched cards
+  // because, in truth, it never did.
+  function updateRefreshSectionCopy() {
+    const el = $("refreshSectionSub");
+    if (!el) return;
+    const exam = _examDocs.find(function (e) {
+      return e._id === _selectedExamId;
+    });
+    if (!exam) {
+      el.textContent = "Select an exam above to see what a refresh would change.";
+      return;
+    }
+
+    const versions =
+      Array.isArray(exam.versions) && exam.versions.length
+        ? exam.versions
+        : ["A", "B"];
+    const vText =
+      versions.length === 1
+        ? "version " + versions[0]
+        : "versions " +
+          versions.slice(0, -1).join(", ") +
+          " and " +
+          versions[versions.length - 1];
+
+    const sectioned = isEnglishCourseAdmin(exam.course);
+    const hasCoding = (exam.codingCount || 0) > 0;
+
+    let what;
+    if (sectioned) {
+      const composition =
+        typeof window.snExamCompositionText === "function"
+          ? window.snExamCompositionText(exam)
+          : "each section";
+      what =
+        "Draws a fresh set of questions for " +
+        vText +
+        " from the " +
+        _courseLabel(exam.course) +
+        " banks (" +
+        escapeHtml(composition) +
+        "), including a different reading passage where more than one is available.";
+    } else if (hasCoding) {
+      what =
+        "Generates a new collection of test questions and coding problems for " +
+        vText +
+        ". Each version is guaranteed to receive different coding problems.";
+    } else {
+      what =
+        "Generates a new shuffle of test questions for " +
+        vText +
+        ". This exam has no coding part, so no coding problems change.";
+    }
+
+    el.innerHTML =
+      what +
+      " Students already taking an exam are unaffected — only new exam starts pick up the new questions.";
   }
 
   // ----- Modal open / close ---------------------------------------
@@ -1810,7 +1881,7 @@
             withPdf.length +
             "</b> of them have a stored PDF"
           : "") +
-        ". Change the filters above to narrow the selection.";
+        ". Change the applied filters to narrow the selected exam submissions.";
     }
     // Default name from the exam itself, so the file is identifiable
     // without the instructor having to think about it.
@@ -1961,14 +2032,18 @@
     for (const r of rows) {
       const ref = _rowPdfRef(r);
       // Name each entry so the ZIP is browsable without opening files.
+      // Convention (July 2026):
+      //   Group-StudentID-Full Name-versionX
+      //   e.g. "FM5-250239-Shahlo Xudoynazarova-versionA.pdf"
+      // Group leads so the archive sorts by group in any file manager,
+      // which is how these get handed back to teaching staff.
       let base = _safeFileName(
         [
+          r.group || "no-group",
           r.studentId || "no-id",
           [r.firstName, r.lastName].filter(Boolean).join(" ") || "unknown",
-          r.version ? "v" + r.version : "",
-        ]
-          .filter(Boolean)
-          .join(" - "),
+          "version" + (r.version || "Unknown"),
+        ].join("-"),
       );
       // Two submissions from the same student would otherwise collide
       // and silently overwrite inside the archive.
@@ -2111,8 +2186,8 @@
       scope.innerHTML =
         "Exports the <b>" +
         rows.length +
-        "</b> submission(s) currently listed, one row each. Change the " +
-        "filters above to narrow the selection.";
+        "</b> submission(s) currently listed, one row each. " +
+        "Change the applied filters to narrow the selected exam submissions.";
     }
     $("bxName").value = [
       _courseLabel(exam.course),
@@ -3958,8 +4033,12 @@
   // =============================================================
   function setRefreshMsg(text, kind) {
     const el = $("refreshMsg");
-    el.textContent = text;
+    if (!el) return;
+    el.textContent = text || "";
     el.className = "admin-msg kind-" + (kind || "ok");
+    // Collapse the strip entirely when cleared, so switching exams
+    // doesn't leave an empty coloured bar behind.
+    el.style.display = text ? "" : "none";
   }
 
   function randomSeed(prefix) {
