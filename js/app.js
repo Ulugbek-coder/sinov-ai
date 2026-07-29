@@ -2887,6 +2887,13 @@ async function performSubmit(trigger) {
 
   window._submissionData = {
     correct,
+    // Round 4 (July 2026): carry the course through to the AI feedback
+    // generator. Without this, ai-feedback.js had no way to know which
+    // subject the exam was for and every student received C++ advice.
+    course: (window._sinovActiveExamConfig || {}).course || null,
+    courseLabel:
+      (window._sinovActiveExamConfig || {}).courseLabel ||
+      _localCourseLabel((window._sinovActiveExamConfig || {}).course),
     // Round 2 additions
     wrong,
     unanswered,

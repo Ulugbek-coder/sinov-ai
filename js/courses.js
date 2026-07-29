@@ -40,7 +40,13 @@
 // 3. If the course needs its own question bank, add the bank file and
 //    load it in the same three HTML pages next to english-bank.js.
 //
-// 4. Set `translateQuestions: false` only when translating the
+// 4. Give the course a `feedback` profile. Without one, the AI study
+//    recommendations fall back to generic wording. The profile tells
+//    Gemini what subject it is tutoring, which topics are plausible,
+//    and which resources are safe to name — before this existed, every
+//    student got C++ advice regardless of the exam they sat.
+//
+// 5. Set `translateQuestions: false` only when translating the
 //    questions would give away the answer (i.e. language exams).
 //    Everything else should stay `true` so students keep the
 //    EN / UZ / RU support they rely on.
@@ -62,6 +68,28 @@ window.SINOV_COURSES = [
     label: "Programming 1 with C++",
     structure: "mc_coding",
     translateQuestions: true,
+    // Drives the AI study recommendations (see `feedback` note below).
+    feedback: {
+      subject: {
+        en: "C++ programming",
+        uz: "C++ dasturlash",
+        ru: "программирование на C++",
+      },
+      tutorRole: "a supportive C++ programming tutor",
+      topicHint:
+        "pointers, memory, loops, operator precedence, type conversion, scope, functions, arrays",
+      resourceHint: "cppreference.com, learncpp.com",
+      fallbackTopic: {
+        en: "C++ Fundamentals",
+        uz: "C++ asoslari",
+        ru: "Основы C++",
+      },
+      fallbackResources: {
+        en: "cppreference.com, ask your instructor",
+        uz: "cppreference.com, o'qituvchidan so'rang",
+        ru: "cppreference.com, обратитесь к преподавателю",
+      },
+    },
   },
   {
     id: "geneng1",
@@ -69,6 +97,29 @@ window.SINOV_COURSES = [
     structure: "sectioned",
     translateQuestions: false, // language exam — see english-bank.js
     bankKey: "geneng1",
+    feedback: {
+      subject: {
+        en: "English language",
+        uz: "ingliz tili",
+        ru: "английский язык",
+      },
+      tutorRole: "a supportive English language teacher",
+      topicHint:
+        "verb tenses, auxiliary verbs, present continuous vs present simple, reading comprehension, vocabulary in context, collocations",
+      resourceHint:
+        "your course book, Cambridge English grammar references, your instructor",
+      fallbackTopic: {
+        en: "English Grammar and Vocabulary",
+        uz: "Ingliz tili grammatikasi va lug'ati",
+        ru: "Грамматика и лексика английского языка",
+      },
+      fallbackResources: {
+        en: "your course book, ask your instructor",
+        uz: "darsligingiz, o'qituvchidan so'rang",
+        ru: "ваш учебник, обратитесь к преподавателю",
+      },
+    },
+
     sections: [
       { key: "reading", label: "Reading" },
       { key: "grammar", label: "Grammar" },
@@ -81,6 +132,29 @@ window.SINOV_COURSES = [
     structure: "sectioned",
     translateQuestions: false,
     bankKey: "geneng2",
+    feedback: {
+      subject: {
+        en: "English language",
+        uz: "ingliz tili",
+        ru: "английский язык",
+      },
+      tutorRole: "a supportive English language teacher",
+      topicHint:
+        "verb tenses, auxiliary verbs, present continuous vs present simple, reading comprehension, vocabulary in context, collocations",
+      resourceHint:
+        "your course book, Cambridge English grammar references, your instructor",
+      fallbackTopic: {
+        en: "English Grammar and Vocabulary",
+        uz: "Ingliz tili grammatikasi va lug'ati",
+        ru: "Грамматика и лексика английского языка",
+      },
+      fallbackResources: {
+        en: "your course book, ask your instructor",
+        uz: "darsligingiz, o'qituvchidan so'rang",
+        ru: "ваш учебник, обратитесь к преподавателю",
+      },
+    },
+
     sections: [
       { key: "reading", label: "Reading" },
       { key: "grammar", label: "Grammar" },
@@ -148,6 +222,14 @@ window.snCourseHasCoding = function (id) {
 window.snCourseTranslatesQuestions = function (id) {
   const def = window.snCourseDef(id);
   return !def || def.translateQuestions !== false;
+};
+
+// AI-feedback profile for a course, or null. Consumed by
+// js/ai-feedback.js (which forwards it to the serverless function) and
+// by api/feedback-generate.js (which builds the Gemini prompt from it).
+window.snCourseFeedbackProfile = function (id) {
+  const def = window.snCourseDef(id);
+  return def && def.feedback ? def.feedback : null;
 };
 
 // Section definitions for a sectioned course; [] for anything else.

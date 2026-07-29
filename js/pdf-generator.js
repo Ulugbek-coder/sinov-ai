@@ -289,7 +289,10 @@ async function generatePDFReport() {
   // any submission that was started before the admin dashboard was wired.
   const cfg = data.examConfig || {};
   const headerCourse = (
-    cfg.courseLabel || "Programming 1 with C++"
+    // Round 4: neutral default. Hardcoding "Programming 1 with C++"
+    // here meant any exam missing a courseLabel printed the wrong
+    // subject across the top of its report.
+    cfg.courseLabel || cfg.course || "Exam"
   ).toUpperCase();
   const examTypeLabels = {
     midterm: "Midterm Exam",
@@ -506,7 +509,40 @@ async function generatePDFReport() {
       .join("+") || "10+15+15+20";
 
   // ---------- Exam structure info box ----------
-  const infoH = 94;
+  //
+  // LAYOUT FIX (July 2026): the points-breakdown row used hardcoded
+  // x-positions (margin+130 for "=", margin+220 for the coding column).
+  // That silently assumed the left-hand description was always about as
+  // wide as "20 tests x 2 pts". A General English exam describes itself
+  // as "Reading 10x5   Grammar 10x2.5   Vocabulary 10x2.5", which runs
+  // straight through the "=" and collided with the coding column — and
+  // the coding column was drawn even when the exam had no coding part,
+  // so a language exam printed a phantom "0 coding (10+15+15+20)".
+  //
+  // Now: the coding row is only drawn when the exam actually has one,
+  // each row right-aligns its points total, and the box grows to fit.
+  const structHasCoding = codingCountForPdf > 0;
+  const mcDescStr =
+    mcBd.mixedPoints && Array.isArray(mcBd.sectionBreakdown)
+      ? mcBd.sectionBreakdown
+          .map(function (sec) {
+            return (
+              _sectionLabelForPdf(sec.section) +
+              " " +
+              sec.count +
+              "x" +
+              fmtP(sec.pointsPerCorrect)
+            );
+          })
+          .join("   ")
+      : mcCountForPdf + " tests  x  " + fmtP(mcBd.pointsPerCorrect) + " pts";
+
+  const mcRowY = y + 62;
+  const codingRowY = y + 75;
+  const structLineY = structHasCoding ? y + 85 : y + 72;
+  const structTotalY = structHasCoding ? y + 99 : y + 86;
+  const infoH = structHasCoding ? 107 : 94;
+
   // Light blue background with navy left accent
   doc.setFillColor(232, 241, 248);
   doc.rect(margin, y, contentW, infoH, "F");
@@ -524,7 +560,7 @@ async function generatePDFReport() {
   doc.setFontSize(9);
   doc.setTextColor(40, 40, 40);
   doc.text(
-    codingCountForPdf > 0
+    structHasCoding
       ? "This exam contains " +
           mcCountForPdf +
           " test questions and " +
@@ -537,7 +573,7 @@ async function generatePDFReport() {
   doc.setFont("helvetica", "italic");
   doc.setTextColor(80, 80, 80);
   doc.text(
-    codingCountForPdf > 0
+    structHasCoding
       ? "Bu imtihon " +
           mcCountForPdf +
           " ta test savoli va " +
@@ -548,53 +584,55 @@ async function generatePDFReport() {
     y + 42,
   );
 
-  // Three little inline columns showing the points breakdown (dynamic)
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9.5);
-  doc.setTextColor(30, 58, 95);
-  doc.text(
-    mcBd.mixedPoints && Array.isArray(mcBd.sectionBreakdown)
-      ? mcBd.sectionBreakdown
-          .map(function (sec) {
-            return (
-              _sectionLabelForPdf(sec.section) +
-              " " +
-              sec.count +
-              "x" +
-              fmtP(sec.pointsPerCorrect)
-            );
-          })
-          .join("   ")
-      : mcCountForPdf + " tests  x  " + fmtP(mcBd.pointsPerCorrect) + " pts",
-    margin + 14,
-    y + 62,
-  );
-  doc.text("=", margin + 130, y + 62);
-  doc.setTextColor(45, 122, 58);
-  doc.text(fmtP(mcMaxForPdf) + " points", margin + 144, y + 62);
+  // Draws "<description>            =   <total> points" on one row,
+  // right-aligning the total so a long description can never collide
+  // with it. Shrinks the description font if it would still overlap.
+  function structRow(desc, totalStr, rowY) {
+    const rightX = margin + contentW - 14;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9.5);
+    doc.setTextColor(45, 122, 58);
+    const totalW = doc.getTextWidth(totalStr);
+    doc.text(totalStr, rightX, rowY, { align: "right" });
+    const eqX = rightX - totalW - 14;
+    doc.setTextColor(30, 58, 95);
+    doc.text("=", eqX, rowY);
+    // Fit the description into the space left of the "=".
+    const avail = eqX - (margin + 14) - 8;
+    let size = 9.5;
+    while (size > 6.5) {
+      doc.setFontSize(size);
+      if (doc.getTextWidth(desc) <= avail) break;
+      size -= 0.5;
+    }
+    doc.text(desc, margin + 14, rowY);
+    doc.setFontSize(9.5);
+  }
 
-  doc.setTextColor(30, 58, 95);
-  doc.text(
-    codingCountForPdf + " coding (" + codingBreakdownStr + ")",
-    margin + 220,
-    y + 62,
-  );
-  doc.text("=", margin + 350, y + 62);
-  doc.setTextColor(45, 122, 58);
-  doc.text(codingMaxTotalForPdf + " points", margin + 364, y + 62);
+  structRow(mcDescStr, fmtP(mcMaxForPdf) + " points", mcRowY);
+  if (structHasCoding) {
+    structRow(
+      codingCountForPdf + " coding (" + codingBreakdownStr + ")",
+      fmtP(codingMaxTotalForPdf) + " points",
+      codingRowY,
+    );
+  }
 
   // Total line — dynamic
   doc.setDrawColor(30, 58, 95);
   doc.setLineWidth(0.8);
-  doc.line(margin + 14, y + 72, margin + contentW - 14, y + 72);
+  doc.line(margin + 14, structLineY, margin + contentW - 14, structLineY);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10.5);
   doc.setTextColor(139, 58, 47);
-  doc.text("MAXIMUM TOTAL  /  JAMI MAKSIMUM", margin + 14, y + 86);
+  doc.text("MAXIMUM TOTAL  /  JAMI MAKSIMUM", margin + 14, structTotalY);
   doc.setTextColor(45, 122, 58);
-  doc.text(fmtP(totalMaxForPdf) + " points", margin + contentW - 14, y + 86, {
-    align: "right",
-  });
+  doc.text(
+    fmtP(totalMaxForPdf) + " points",
+    margin + contentW - 14,
+    structTotalY,
+    { align: "right" },
+  );
 
   doc.setTextColor(0, 0, 0);
   y += infoH + 14;
@@ -2717,7 +2755,7 @@ async function generatePDFReport() {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.5);
     doc.setTextColor(90, 90, 90);
-    doc.text("NO CODING PART", margin + summary3W + 20, y + 22);
+    doc.text("NO OTHER QUESTION TYPES", margin + summary3W + 20, y + 22);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(12);
     doc.setTextColor(120, 120, 120);

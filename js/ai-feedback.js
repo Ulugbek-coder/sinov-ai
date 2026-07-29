@@ -41,7 +41,7 @@
    */
   async function generate(submissionData) {
     if (!submissionData) {
-      return localFallback("the student", []);
+      return localFallback("the student", [], (submissionData || {}).course);
     }
 
     const studentName =
@@ -68,6 +68,18 @@
       mcBreakdown: submissionData.mcBreakdown || null,
       wrongOrSkipped: wrongOrSkipped,
       codingSummary: codingSummary,
+      // Round 4 (July 2026): tell the generator WHICH SUBJECT this is.
+      // Previously the prompt was hardcoded to C++, so an English or
+      // Calculus student was advised to study pointers and memory.
+      course: submissionData.course || null,
+      courseLabel:
+        typeof window.snCourseLabel === "function"
+          ? window.snCourseLabel(submissionData.course)
+          : submissionData.course || null,
+      subjectProfile:
+        typeof window.snCourseFeedbackProfile === "function"
+          ? window.snCourseFeedbackProfile(submissionData.course)
+          : null,
     };
 
     // Try the proxy with a generous timeout — Gemini text responses
@@ -87,7 +99,7 @@
         console.warn(
           "[AIFeedback] HTTP " + resp.status + ": " + errTxt.slice(0, 200),
         );
-        return localFallback(studentName, wrongOrSkipped);
+        return localFallback(studentName, wrongOrSkipped, submissionData.course);
       }
       const data = await resp.json();
       // Validate shape
@@ -100,13 +112,13 @@
         data.en.recommendations.length === 0
       ) {
         console.warn("[AIFeedback] Malformed response, using local fallback");
-        return localFallback(studentName, wrongOrSkipped);
+        return localFallback(studentName, wrongOrSkipped, submissionData.course);
       }
       data.fallback = false;
       return data;
     } catch (err) {
       console.warn("[AIFeedback] Request failed:", err);
-      return localFallback(studentName, wrongOrSkipped);
+      return localFallback(studentName, wrongOrSkipped, submissionData.course);
     }
   }
 
@@ -227,7 +239,7 @@
   // how many questions the student got wrong. Not as good as Gemini's
   // output but ensures the section always renders.
 
-  function localFallback(studentName, wrongOrSkipped) {
+  function localFallback(studentName, wrongOrSkipped, courseId) {
     const n = wrongOrSkipped.length;
     // FIX (May 23): standardized headline opening across both Gemini and
     // fallback paths. The student should see the same formal greeting
@@ -260,74 +272,68 @@
           studentName +
           ", ваши результаты экзамена были рассмотрены, и мы выявили несколько тем, которые стоит повторить перед следующим экзаменом.";
 
+    // Round 4: the offline fallback is subject-aware too. `prof` comes
+    // from the course registry; the ?? chain keeps this working for a
+    // course with no profile and for legacy submissions with no course.
+    const prof =
+      (typeof window.snCourseFeedbackProfile === "function" &&
+        window.snCourseFeedbackProfile(courseId)) ||
+      null;
+    const subjEn = prof ? prof.fallbackTopic.en : "Core Concepts";
+    const subjUz = prof ? prof.fallbackTopic.uz : "Asosiy tushunchalar";
+    const subjRu = prof ? prof.fallbackTopic.ru : "Основные понятия";
+    const resEn = prof ? prof.fallbackResources.en : "ask your instructor";
+    const resUz = prof ? prof.fallbackResources.uz : "o'qituvchidan so'rang";
+    const resRu = prof
+      ? prof.fallbackResources.ru
+      : "обратитесь к преподавателю";
+
     const enRecs = [
       {
-        topic: "C++ Fundamentals Review",
+        topic: subjEn,
         advice:
           n === 0
-            ? "Even with a perfect score, deepen your understanding by exploring how the C++ compiler handles type conversions, scope, and memory."
+            ? "Even with a perfect score, keep consolidating the core ideas of this course — revisit the topics you found hardest to be sure they are secure."
             : "Walk through each missed question with your instructor or a study partner. Identify exactly which concept tripped you up — usually it's a small detail.",
-        resources: "cppreference.com, learncpp.com, ask your instructor",
+        resources: resEn,
       },
       {
-        topic: "Practice with Code Tracing",
+        topic: "Review Your Missed Questions",
         advice:
-          "Take small C++ snippets and trace them by hand on paper, predicting the output before running them. This builds the mental model that exam questions test.",
-        resources: "C++ code-tracing exercises, online C++ practice platforms",
-      },
-      {
-        topic: "Pointers and Memory",
-        advice:
-          "Pointers are the most commonly missed topic. Make sure you understand the difference between an address, a pointer, and what it points to.",
-        resources:
-          "cppreference.com on pointers, C++ pointer fundamentals tutorials",
+          "For every question you got wrong, write out why the correct answer is correct — not just what it is. Explaining it in your own words is what makes it stick.",
+        resources: resEn,
       },
     ];
     const uzRecs = [
       {
-        topic: "C++ asoslarini takrorlash",
+        topic: subjUz,
         advice:
           n === 0
-            ? "Mukammal natijaga erishgan bo'lsangiz ham, C++ kompilyatori tip konvertatsiyasi, qamrov va xotira bilan qanday ishlashini chuqurroq o'rganing."
-            : "Har bir noto'g'ri javob bergan savolingizni o'qituvchi yoki guruhdoshingiz bilan ko'rib chiqing. Aniq qaysi tushuncha sizni qiyinlashtirgaganini aniqlang.",
-        resources: "cppreference.com, learncpp.com, o'qituvchidan so'rang",
+            ? "Mukammal natijaga erishgan bo'lsangiz ham, ushbu fanning asosiy g'oyalarini mustahkamlashda davom eting — eng qiyin bo'lgan mavzularni qayta ko'rib chiqing."
+            : "Har bir noto'g'ri javob bergan savolingizni o'qituvchi yoki guruhdoshingiz bilan ko'rib chiqing. Aniq qaysi tushuncha sizni qiynaganini aniqlang.",
+        resources: resUz,
       },
       {
-        topic: "Kod kuzatuvini mashq qilish",
+        topic: "Xato javoblaringizni tahlil qiling",
         advice:
-          "Kichik C++ kod parchalarini qog'ozda qo'l bilan kuzatib, ishga tushirishdan oldin natijani bashorat qiling. Bu imtihonda sinaladigan fikrlash modelini quradi.",
-        resources:
-          "C++ kod kuzatuvi mashqlari, onlayn C++ amaliyot platformalari",
-      },
-      {
-        topic: "Ko'rsatkichlar va xotira",
-        advice:
-          "Ko'rsatkichlar eng ko'p xatoga uchraydigan mavzudir. Manzil, ko'rsatkich va u nimaga ishora qilishi orasidagi farqni yaxshilab tushuning.",
-        resources:
-          "cppreference.com ko'rsatkichlar bo'limi, C++ ko'rsatkichlari asoslari",
+          "Noto'g'ri javob bergan har bir savol uchun to'g'ri javob nima ekanini emas, balki NEGA to'g'ri ekanini yozib chiqing. Uni o'z so'zlaringiz bilan tushuntirish bilimni mustahkamlaydi.",
+        resources: resUz,
       },
     ];
     const ruRecs = [
       {
-        topic: "Повторение основ C++",
+        topic: subjRu,
         advice:
           n === 0
-            ? "Даже с идеальным результатом углубите понимание того, как компилятор C++ обрабатывает преобразования типов, область видимости и память."
+            ? "Даже с идеальным результатом продолжайте закреплять основные идеи курса — вернитесь к темам, которые показались вам самыми сложными."
             : "Разберите каждый пропущенный вопрос с преподавателем или одногруппником. Точно определите, какая концепция вас затруднила.",
-        resources: "cppreference.com, learncpp.com, обратитесь к преподавателю",
+        resources: resRu,
       },
       {
-        topic: "Практика трассировки кода",
+        topic: "Разбор ошибок",
         advice:
-          "Берите небольшие фрагменты C++ и трассируйте их вручную на бумаге, предсказывая вывод перед запуском. Это формирует мысленную модель, которую проверяют экзаменационные вопросы.",
-        resources:
-          "Упражнения по трассировке кода C++, онлайн-платформы по C++",
-      },
-      {
-        topic: "Указатели и память",
-        advice:
-          "Указатели — самая часто пропускаемая тема. Убедитесь, что понимаете разницу между адресом, указателем и тем, на что он указывает.",
-        resources: "cppreference.com раздел указателей, основы указателей C++",
+          "Для каждого вопроса, где вы ошиблись, выпишите, ПОЧЕМУ правильный ответ верен, а не только каким он является. Объяснение своими словами закрепляет материал.",
+        resources: resRu,
       },
     ];
 
