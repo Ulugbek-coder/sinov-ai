@@ -79,6 +79,7 @@ No framework, no build step. The entire frontend is hand-written HTML / CSS / va
 | `js/questions/question-bank.js` | C++ MC bank (trilingual) |
 | `js/questions/coding-bank.js` | C++ coding-problem bank (trilingual) |
 | `js/questions/english-bank.js` | General English 1 & 2 banks + reading passages (English-only) |
+| `js/questions/math-bank.js` | Calculus 1/2 and Analytical Geometry banks (trilingual) |
 | `js/courses.js` | **Course registry** — single source of truth for every subject |
 | `firestore.rules` | Firestore security rules |
 | `storage.rules` | Firebase Storage security rules |
@@ -109,9 +110,36 @@ uncomment one and add its question bank to enable it.
 
 | Course | Code | Structure | Question source |
 | --- | --- | --- | --- |
-| Programming 1 with C++ | `cpp1` | N multiple-choice + M coding problems | `question-bank.js`, `question-bank-new.js`, `coding-bank.js` |
-| General English 1 | `geneng1` | Reading + Grammar + Vocabulary sections, no coding | `english-bank.js` |
-| General English 2 | `geneng2` | Reading + Grammar + Vocabulary sections, no coding | `english-bank.js` |
+| Programming 1 with C++ | `cpp1` | Multiple choice, optionally + coding problems | `question-bank.js`, `question-bank-new.js`, `coding-bank.js` |
+| General English 1 | `geneng1` | Reading + Grammar + Vocabulary sections | `english-bank.js` |
+| General English 2 | `geneng2` | Reading + Grammar + Vocabulary sections | `english-bank.js` |
+| Calculus 1 | `calc1` | Multiple choice only | `math-bank.js` → `calculus1` |
+| Mathematical Analysis 1 | `mathan1` | Multiple choice only | `math-bank.js` → `calculus1` *(shared)* |
+| Calculus 2 | `calc2` | Multiple choice only | `math-bank.js` → `calculus2` |
+| Mathematical Analysis 2 | `mathan2` | Multiple choice only | `math-bank.js` → `calculus2` *(shared)* |
+| Analytical Geometry | `anageo` | Multiple choice only | `math-bank.js` → `analytic_geometry` |
+
+Programming 1 accepts **0 coding problems**, making it a multiple-choice-only
+exam, or any number up to 20 alongside the test questions.
+
+### Mathematics courses
+
+Banks are keyed by **bank name, not course**, because courses share them:
+Calculus 1 and Mathematical Analysis 1 both draw from `calculus1`; Calculus 2
+and Mathematical Analysis 2 both draw from `calculus2`. Each bank holds 25
+questions, fully translated into Uzbek and Russian.
+
+All three maths banks print their correct answer first in the source. The
+engine redistributes correct answers evenly across positions A–D per exam
+version, so a student who always picks A scores about 25%, not 100%. Each
+version also receives a different question order on refresh.
+
+Answer keys were verified twice: the Calculus source marks every correct
+answer `*A.` (confirmed programmatically across all 50), and every question in
+all three banks was then re-solved independently. Analytical Geometry carries
+no answer key in its source at all, so all 25 were keyed purely from the
+mathematics; five documented deviations from the printed paper are recorded in
+the header of `math-bank.js`.
 
 ### General English exams
 
