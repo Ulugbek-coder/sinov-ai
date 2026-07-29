@@ -320,11 +320,14 @@
       label: "National Pedagogical University of Uzbekistan (NPUU)",
     },
   ];
-  const EXAM_COURSES = [
-    { value: "cpp1", label: "Programming 1 with C++" },
-    { value: "geneng1", label: "General English 1" },
-    { value: "geneng2", label: "General English 2" },
-  ];
+  // Course list comes from the registry (js/courses.js) so adding a
+  // subject there is the only edit needed. Falls back to the historical
+  // hardcoded entry if the registry script fails to load.
+  const EXAM_COURSES = (
+    window.SINOV_COURSES || [{ id: "cpp1", label: "Programming 1 with C++" }]
+  ).map(function (c) {
+    return { value: c.id, label: c.label };
+  });
 
   // ---------------------------------------------------------------
   // General English support (Round 3, July 2026)
@@ -341,10 +344,23 @@
   ];
 
   function isEnglishCourseAdmin(course) {
-    if (typeof window.isEnglishCourse === "function") {
-      return window.isEnglishCourse(course);
+    // Prefer the registry. Named differently from the global it calls,
+    // so it can never recurse into itself the way the first Round 3
+    // build of app.js did.
+    if (typeof window.snCourseIsSectioned === "function") {
+      return window.snCourseIsSectioned(course);
     }
     return ENGLISH_COURSE_IDS_ADMIN.indexOf(course) !== -1;
+  }
+
+  // True when this course's exams have a coding part at all. Used to
+  // hide coding inputs for pure-test subjects (General English today,
+  // the planned maths subjects tomorrow).
+  function courseHasCodingAdmin(course) {
+    if (typeof window.snCourseHasCoding === "function") {
+      return window.snCourseHasCoding(course);
+    }
+    return ENGLISH_COURSE_IDS_ADMIN.indexOf(course) === -1;
   }
 
   // How many questions the bank actually holds per section, so the
@@ -1322,14 +1338,28 @@
   // original MC count / coding count / per-problem max points.
   function _applyCourseModeToForm(course) {
     const english = isEnglishCourseAdmin(course);
+    // A course can be non-sectioned yet still have no coding part
+    // (the planned Calculus / Mathematical Analysis / Analytical
+    // Geometry subjects). Those keep the MC inputs but lose the
+    // coding ones.
+    const hasCoding = courseHasCodingAdmin(course);
     const show = function (id, visible) {
       const el = $(id);
       if (el) el.style.display = visible ? "" : "none";
     };
     show("efMcRow", !english);
-    show("efCodingRow", !english);
+    show("efCodingRow", !english && hasCoding);
     show("efMcCorrectPtsCell", !english);
     show("efEnglishSectionsRow", english);
+    if (!english && !hasCoding) {
+      // Pure multiple-choice subject: force zero coding problems so
+      // the saved doc matches what the form shows.
+      const cEl = $("efCoding");
+      if (cEl) cEl.value = "0";
+      show("efCodingMaxRow", false);
+      _renderCodingMaxGrid(0, []);
+      return;
+    }
     if (english) {
       // Coding has no meaning for a language exam.
       show("efCodingMaxRow", false);
@@ -3057,7 +3087,18 @@
     //   2 distinct easy_medium_starter (1 per version × 2 versions)  ⇒ P1
     //   4 distinct control_loop_function (2 per version × 2 versions) ⇒ P2, P3
     //   2 distinct array_or_string_hard (1 per version × 2 versions)  ⇒ P4
-    if (easyCount < 2 || clfCount < 4 || hardCount < 2) {
+    // Only relevant when this exam actually draws coding problems.
+    // A General English (or any pure-test) exam must not be blocked by
+    // the state of the C++ coding bank.
+    const _refreshExamDoc =
+      _examDocs.find(function (e) {
+        return e._id === _selectedExamId;
+      }) || {};
+    const _refreshNeedsCoding = (_refreshExamDoc.codingCount || 0) > 0;
+    if (
+      _refreshNeedsCoding &&
+      (easyCount < 2 || clfCount < 4 || hardCount < 2)
+    ) {
       setRefreshMsg(
         "Coding bank too small — need at least 2 easy/medium starter, 4 control/loop, and 2 hard array/string problems.",
         "err",
@@ -3066,11 +3107,64 @@
     }
 
     // Confirm with instructor
+    // The confirmation text is built from THIS exam's configuration.
+    // It used to be hardcoded to "version A and version B ... coding
+    // problems", which was wrong for any exam with different versions
+    // or no coding part — it promised a General English student new
+    // coding problems that don't exist.
+    const _rExam =
+      _examDocs.find(function (e) {
+        return e._id === _selectedExamId;
+      }) || {};
+    const _rVersions =
+      Array.isArray(_rExam.versions) && _rExam.versions.length
+        ? _rExam.versions
+        : ["A", "B"];
+    // "version A", "versions A and B", "versions A, B and C"
+    const _vLabels = _rVersions.map(function (v) {
+      return "version " + v;
+    });
+    const _vText =
+      _vLabels.length === 1
+        ? _vLabels[0]
+        : _vLabels.slice(0, -1).join(", ") + " and " + _vLabels[_vLabels.length - 1];
+    // "Version A" for one version, "Each of version A and version B"
+    // for several. Built rather than hardcoded because an exam can be
+    // configured with any number of versions, and the old copy assumed
+    // exactly two ("Both version A and version B").
+    const _vSubject =
+      _vLabels.length === 1 ? _capitalize(_vText) : "Each of " + _vText;
+    const _rSectioned = isEnglishCourseAdmin(_rExam.course);
+    const _rHasCoding = (_rExam.codingCount || 0) > 0;
+
+    let _whatChanges;
+    if (_rSectioned) {
+      const _composition =
+        typeof window.snExamCompositionText === "function"
+          ? window.snExamCompositionText(_rExam)
+          : "each section";
+      _whatChanges =
+        _vSubject +
+        " will receive a fresh draw of questions from the " +
+        _courseLabel(_rExam.course) +
+        " banks (" +
+        escapeHtml(_composition) +
+        "), including a different reading passage where more than one is available.";
+    } else if (_rHasCoding) {
+      _whatChanges =
+        _vSubject +
+        " will receive newly-chosen coding problems and a new test-question shuffle.";
+    } else {
+      _whatChanges =
+        _vSubject +
+        " will receive a new test-question shuffle. This exam has no coding part, so no coding problems change.";
+    }
+
     const ok = await modalConfirm({
       title: "Refresh exam questions?",
       message:
         "This will refresh the questions shown to <b>all students who start the exam from now on</b>. " +
-        "Both version A and version B will receive newly-chosen coding problems and a new test-question shuffle. " +
+        _whatChanges +
         "<br><br>" +
         "Students who are <b>already taking</b> an exam are not affected — their questions stay the same until they submit.",
       confirmLabel: "Yes, refresh now",

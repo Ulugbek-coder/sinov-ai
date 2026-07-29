@@ -449,16 +449,41 @@ function buildBalancedOptionOrders(selected, rng, seed) {
 //   - questions are English-only (see english-bank.js)
 // ===============================================================
 
-// Canonical list of English course codes. Prefers the definition in
-// english-bank.js; the inline fallback keeps this file working if the
-// bank script fails to load (the exam then simply behaves as before).
+// Fallback list, used only if courses.js failed to load.
 const ENGLISH_COURSE_FALLBACK = ["geneng1", "geneng2"];
 
-function isEnglishCourse(course) {
-  if (typeof window.isEnglishCourse === "function") {
-    return window.isEnglishCourse(course);
+// CRASH FIX (July 2026): this helper used to be named `isEnglishCourse`
+// and delegated to `window.isEnglishCourse`. app.js is not wrapped in
+// an IIFE, so its own top-level declaration BECAME
+// `window.isEnglishCourse` (overwriting the one english-bank.js sets,
+// because app.js loads later). The guard then found itself and recursed
+// until the stack blew — "Maximum call stack size exceeded" on every
+// exam start. Two independent defences now:
+//   1. the local name differs from the global it consults, so a
+//      self-call is impossible even if the global goes missing;
+//   2. courses.js owns the answer and namespaces everything `sn*`.
+function examCourseIsSectioned(course) {
+  if (typeof window.snCourseIsSectioned === "function") {
+    return window.snCourseIsSectioned(course);
   }
   return ENGLISH_COURSE_FALLBACK.indexOf(course) !== -1;
+}
+
+// Whether this course's exams include a coding part.
+function snCourseHasCodingSafe(course) {
+  if (typeof window.snCourseHasCoding === "function") {
+    return window.snCourseHasCoding(course);
+  }
+  return ENGLISH_COURSE_FALLBACK.indexOf(course) === -1;
+}
+
+// Whether this course's questions may be shown in Uzbek / Russian.
+// False for language exams only.
+function examCourseTranslates(course) {
+  if (typeof window.snCourseTranslatesQuestions === "function") {
+    return window.snCourseTranslatesQuestions(course);
+  }
+  return ENGLISH_COURSE_FALLBACK.indexOf(course) === -1;
 }
 
 // True when the ACTIVE exam is a General English exam. Drives
@@ -466,7 +491,7 @@ function isEnglishCourse(course) {
 // exam.html. Every other course keeps full EN/UZ/RU translation.
 function examIsEnglishOnly() {
   const cfg = window._sinovActiveExamConfig;
-  return !!(cfg && isEnglishCourse(cfg.course));
+  return !!(cfg && !examCourseTranslates(cfg.course));
 }
 
 // Default section configuration, used when an exam doc predates the
@@ -964,7 +989,7 @@ async function startExam() {
   // General English exams never have a coding part. Guard here as well
   // as in the admin form so a hand-edited or legacy exam doc can't
   // hand a language student four C++ problems.
-  const codingCount = isEnglishCourse(cfg.course)
+  const codingCount = !snCourseHasCodingSafe(cfg.course)
     ? 0
     : typeof cfg.codingCount === "number" && cfg.codingCount >= 0
       ? cfg.codingCount
@@ -980,7 +1005,7 @@ async function startExam() {
   // July 2026: General English exams are section-structured and draw
   // from their own banks. Every other course keeps the original
   // pooled-bank selection untouched.
-  const isEnglishExam = isEnglishCourse(cfg.course);
+  const isEnglishExam = examCourseIsSectioned(cfg.course);
 
   if (isEnglishExam) {
     const result = buildEnglishExam(
@@ -2026,7 +2051,7 @@ function applyExamConfigToHeader(cfg) {
   // Round 3 (July 2026): General English exams describe their shape
   // with a `sections` map rather than a flat MC count, and each
   // section has its own point value.
-  const englishExam = !!(cfg && isEnglishCourse(cfg.course));
+  const englishExam = !!(cfg && examCourseIsSectioned(cfg.course));
   const engSections = englishExam ? normalizeEnglishSections(cfg.sections) : null;
   const engTotals = engSections
     ? ["reading", "grammar", "vocabulary"].reduce(
@@ -2215,6 +2240,75 @@ function applyExamConfigToHeader(cfg) {
   }
 }
 
+// ---------------- Welcome-page format banner (July 2026) ----------------
+//
+// The blue three-stat banner used to be hardcoded to
+// "Multiple Choice / Coding Problems / Duration", so a General English
+// exam advertised "0 CODING PROBLEMS" — technically true, useless to
+// the student, and actively confusing on a language paper.
+//
+// The middle stat now adapts to the exam's actual shape:
+//   coding exam      → Coding Problems (unchanged)
+//   no coding part   → Total Points, which is what a test-only student
+//                      actually wants to know
+// and the first stat is labelled "Test Questions" for section-based
+// exams, where "Multiple Choice" undersells a reading comprehension.
+//
+// Driven entirely by the course registry, so the five planned maths
+// subjects will render correctly the day they're added — no change
+// needed here.
+function renderExamFormatBanner(config) {
+  const mcEl = $("snFormatMc");
+  const codeEl = $("snFormatCode");
+  const durEl = $("snFormatDur");
+  const mcLabel = $("snFormatMcLabel");
+  const codeLabel = $("snFormatCodeLabel");
+
+  const sectioned = examCourseIsSectioned(config.course);
+  const hasCoding = (config.codingCount || 0) > 0;
+
+  const qCount =
+    typeof window.snExamQuestionCount === "function"
+      ? window.snExamQuestionCount(config)
+      : config.mcCount || 0;
+
+  if (mcEl) mcEl.textContent = String(qCount);
+  if (durEl) durEl.textContent = String(config.duration || 0);
+
+  // Rewrites a label div, keeping the trilingual secondary spans that
+  // the language switcher toggles.
+  function setLabel(el, en, uz, ru) {
+    if (!el) return;
+    el.innerHTML =
+      en +
+      '<span class="sn-fl-second uz">' +
+      uz +
+      "</span>" +
+      '<span class="sn-fl-second ru">' +
+      ru +
+      "</span>";
+  }
+
+  if (sectioned) {
+    setLabel(mcLabel, "Test Questions", "Test savollari", "Тестовые вопросы");
+  } else {
+    setLabel(mcLabel, "Multiple Choice", "Testlar", "Тесты");
+  }
+
+  if (hasCoding) {
+    if (codeEl) codeEl.textContent = String(config.codingCount || 0);
+    setLabel(codeLabel, "Coding Problems", "Kodlash masalalari", "Задачи");
+  } else {
+    // No coding part — show what the exam is worth instead.
+    const total =
+      typeof window.snExamTotalPoints === "function"
+        ? window.snExamTotalPoints(config)
+        : qCount;
+    if (codeEl) codeEl.textContent = fmtPoints(total);
+    setLabel(codeLabel, "Total Points", "Umumiy ball", "Всего баллов");
+  }
+}
+
 // ---------------- English-only language lock (Round 3) ----------------
 //
 // General English 1 / 2 assess English itself, so showing an Uzbek or
@@ -2278,17 +2372,10 @@ function _localExamTypeLabel(t) {
 }
 
 function _localCourseLabel(c) {
-  // Mirror of EXAM_COURSES in admin.js
-  switch (c) {
-    case "cpp1":
-      return "Programming 1 with C++";
-    case "geneng1":
-      return "General English 1";
-    case "geneng2":
-      return "General English 2";
-    default:
-      return c || "Course";
-  }
+  // Registry-driven (js/courses.js) — adding a subject there updates
+  // this automatically.
+  if (typeof window.snCourseLabel === "function") return window.snCourseLabel(c);
+  return c || "Course";
 }
 
 function _localSemesterLabel(s) {
@@ -3721,12 +3808,7 @@ document.addEventListener("DOMContentLoaded", () => {
           if (notConfigured) notConfigured.hidden = true;
           if (format) {
             format.hidden = false;
-            const mcEl = $("snFormatMc");
-            const codeEl = $("snFormatCode");
-            const durEl = $("snFormatDur");
-            if (mcEl) mcEl.textContent = String(config.mcCount || 0);
-            if (codeEl) codeEl.textContent = String(config.codingCount || 0);
-            if (durEl) durEl.textContent = String(config.duration || 0);
+            renderExamFormatBanner(config);
           }
           if (configFields) configFields.hidden = false;
           // Stash on window so the exam page can read it after Start Exam.
@@ -3742,11 +3824,11 @@ document.addEventListener("DOMContentLoaded", () => {
             "natural-sciences": "Faculty of Natural Sciences",
             "pre-school-education": "Faculty of Pre-School Education",
           };
-          const courseLabels = {
-            cpp1: "Programming 1 with C++",
-            geneng1: "General English 1",
-            geneng2: "General English 2",
-          };
+          // Course labels come from the registry (js/courses.js).
+          const courseLabels = {};
+          (window.SINOV_COURSES || []).forEach(function (c) {
+            courseLabels[c.id] = c.label;
+          });
           enriched.universityLabel =
             uniLabels[enriched.university] || enriched.university;
           enriched.facultyLabel =
