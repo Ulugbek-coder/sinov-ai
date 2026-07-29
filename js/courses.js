@@ -163,14 +163,121 @@ window.SINOV_COURSES = [
   },
 
   // ---------------------------------------------------------------
+  // Mathematics (July 2026)
+  // ---------------------------------------------------------------
+  // Calculus 1 and Mathematical Analysis 1 deliberately SHARE the
+  // `calculus1` bank; Calculus 2 and Mathematical Analysis 2 share
+  // `calculus2`. That is why banks are keyed by bank name rather than
+  // by course id — see js/questions/math-bank.js.
+  {
+    id: "calc1",
+    label: "Calculus 1",
+    structure: "mc_only",
+    translateQuestions: true,
+    bankKey: "calculus1",
+    feedback: {
+      subject: { en: "calculus (limits and derivatives)", uz: "matematik analiz (limitlar va hosilalar)", ru: "математический анализ (пределы и производные)" },
+      tutorRole: "a supportive university calculus tutor",
+      topicHint: "sets and number systems, limits of sequences and functions, indeterminate forms and L'Hopital's rule, differentiation rules, the chain rule, higher-order derivatives",
+      resourceHint: "your lecture notes, Paul's Online Math Notes, Khan Academy",
+      fallbackTopic: { en: "Limits and Derivatives", uz: "Limitlar va hosilalar", ru: "Пределы и производные" },
+      fallbackResources: {
+        en: "your lecture notes, ask your instructor",
+        uz: "ma'ruza qaydlaringiz, o'qituvchidan so'rang",
+        ru: "ваши лекционные записи, обратитесь к преподавателю",
+      },
+    },
+  },
+  {
+    id: "mathan1",
+    label: "Mathematical Analysis 1",
+    structure: "mc_only",
+    translateQuestions: true,
+    bankKey: "calculus1", // same bank as Calculus 1, by design
+    feedback: {
+      subject: { en: "calculus (limits and derivatives)", uz: "matematik analiz (limitlar va hosilalar)", ru: "математический анализ (пределы и производные)" },
+      tutorRole: "a supportive university calculus tutor",
+      topicHint: "sets and number systems, limits of sequences and functions, indeterminate forms and L'Hopital's rule, differentiation rules, the chain rule, higher-order derivatives",
+      resourceHint: "your lecture notes, Paul's Online Math Notes, Khan Academy",
+      fallbackTopic: { en: "Limits and Derivatives", uz: "Limitlar va hosilalar", ru: "Пределы и производные" },
+      fallbackResources: {
+        en: "your lecture notes, ask your instructor",
+        uz: "ma'ruza qaydlaringiz, o'qituvchidan so'rang",
+        ru: "ваши лекционные записи, обратитесь к преподавателю",
+      },
+    },
+  },
+  {
+    id: "calc2",
+    label: "Calculus 2",
+    structure: "mc_only",
+    translateQuestions: true,
+    bankKey: "calculus2",
+    feedback: {
+      subject: { en: "calculus (integration and series)", uz: "matematik analiz (integrallar va qatorlar)", ru: "математический анализ (интегралы и ряды)" },
+      tutorRole: "a supportive university calculus tutor",
+      topicHint: "antiderivatives, indefinite and definite integrals, integration by parts, integrals of rational functions, convergence of series, geometric and harmonic series, the p-series test",
+      resourceHint: "your lecture notes, Paul's Online Math Notes, Khan Academy",
+      fallbackTopic: { en: "Integration and Series", uz: "Integrallar va qatorlar", ru: "Интегралы и ряды" },
+      fallbackResources: {
+        en: "your lecture notes, ask your instructor",
+        uz: "ma'ruza qaydlaringiz, o'qituvchidan so'rang",
+        ru: "ваши лекционные записи, обратитесь к преподавателю",
+      },
+    },
+  },
+  {
+    id: "mathan2",
+    label: "Mathematical Analysis 2",
+    structure: "mc_only",
+    translateQuestions: true,
+    bankKey: "calculus2", // same bank as Calculus 2, by design
+    feedback: {
+      subject: { en: "calculus (integration and series)", uz: "matematik analiz (integrallar va qatorlar)", ru: "математический анализ (интегралы и ряды)" },
+      tutorRole: "a supportive university calculus tutor",
+      topicHint: "antiderivatives, indefinite and definite integrals, integration by parts, integrals of rational functions, convergence of series, geometric and harmonic series, the p-series test",
+      resourceHint: "your lecture notes, Paul's Online Math Notes, Khan Academy",
+      fallbackTopic: { en: "Integration and Series", uz: "Integrallar va qatorlar", ru: "Интегралы и ряды" },
+      fallbackResources: {
+        en: "your lecture notes, ask your instructor",
+        uz: "ma'ruza qaydlaringiz, o'qituvchidan so'rang",
+        ru: "ваши лекционные записи, обратитесь к преподавателю",
+      },
+    },
+  },
+  {
+    id: "anageo",
+    label: "Analytical Geometry",
+    structure: "mc_only",
+    translateQuestions: true,
+    bankKey: "analytic_geometry",
+    feedback: {
+      subject: {
+        en: "analytic geometry",
+        uz: "analitik geometriya",
+        ru: "аналитическая геометрия",
+      },
+      tutorRole: "a supportive university analytic geometry tutor",
+      topicHint:
+        "vectors and their dot and cross products, collinearity and orthogonality conditions, equations of lines and planes in space, distance from a point to a line, conic sections (ellipse, hyperbola), polar coordinates",
+      resourceHint: "your lecture notes, Khan Academy, Paul's Online Math Notes",
+      fallbackTopic: {
+        en: "Vectors, Lines and Conic Sections",
+        uz: "Vektorlar, to'g'ri chiziqlar va konus kesimlari",
+        ru: "Векторы, прямые и конические сечения",
+      },
+      fallbackResources: {
+        en: "your lecture notes, ask your instructor",
+        uz: "ma'ruza qaydlaringiz, o'qituvchidan so'rang",
+        ru: "ваши лекционные записи, обратитесь к преподавателю",
+      },
+    },
+  },
+
+  // ---------------------------------------------------------------
   // Planned subjects — uncomment and add a question bank when ready.
   // No other file needs to change.
   // ---------------------------------------------------------------
-  // { id: "calc1",    label: "Calculus 1",                structure: "mc_only", translateQuestions: true },
-  // { id: "calc2",    label: "Calculus 2",                structure: "mc_only", translateQuestions: true },
-  // { id: "mathan1",  label: "Mathematical Analysis 1",   structure: "mc_only", translateQuestions: true },
-  // { id: "mathan2",  label: "Mathematical Analysis 2",   structure: "mc_only", translateQuestions: true },
-  // { id: "anageo",   label: "Analytical Geometry",       structure: "mc_only", translateQuestions: true },
 ];
 
 // ---------------------------------------------------------------
@@ -222,6 +329,14 @@ window.snCourseHasCoding = function (id) {
 window.snCourseTranslatesQuestions = function (id) {
   const def = window.snCourseDef(id);
   return !def || def.translateQuestions !== false;
+};
+
+// Which question bank a course draws from, or null. Several courses
+// may return the SAME key — that is how Calculus 1 and Mathematical
+// Analysis 1 share one bank.
+window.snCourseBankKey = function (id) {
+  const def = window.snCourseDef(id);
+  return def && def.bankKey ? def.bankKey : null;
 };
 
 // AI-feedback profile for a course, or null. Consumed by
