@@ -229,7 +229,16 @@ function escapeOptionText(s) {
     .replace(/&lt;em&gt;/g, "<em>")
     .replace(/&lt;\/em&gt;/g, "</em>")
     .replace(/&lt;strong&gt;/g, "<strong>")
-    .replace(/&lt;\/strong&gt;/g, "</strong>");
+    .replace(/&lt;\/strong&gt;/g, "</strong>")
+    // July 2026: sub/sup are required by the mathematics banks, whose
+    // options carry real notation (Sigma<sub>n=1</sub><sup>inf</sup>,
+    // e<sup>x</sup>, x<sup>3</sup>/3 + C). Without them the tags were
+    // escaped and students saw literal "<sub>n=1</sub>" markup inside
+    // every answer option.
+    .replace(/&lt;sub&gt;/g, "<sub>")
+    .replace(/&lt;\/sub&gt;/g, "</sub>")
+    .replace(/&lt;sup&gt;/g, "<sup>")
+    .replace(/&lt;\/sup&gt;/g, "</sup>");
   return out;
 }
 
