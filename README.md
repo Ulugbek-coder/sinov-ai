@@ -250,6 +250,53 @@ session ids embed their start time, so age is read from the folder name.
 Sessions whose id cannot be parsed are listed as skipped and never
 auto-deleted.
 
+### Rendering maths in questions
+
+Question banks may use `<sub>`, `<sup>` and `<b>` plus Unicode maths
+symbols. Two separate paths handle them:
+
+- **Exam page** — option text is HTML-escaped, then a whitelist of
+  formatting tags is restored, so `Σ<sub>n=1</sub>` renders as real
+  notation while C++ code (`cout << a`) and any injected markup stay
+  escaped.
+- **PDF report** — the question review embeds **DejaVu Sans** and draws
+  real notation: ∫ Σ Π ∞ √ ∧ ∨ ∪ ∩ ∅ ℝ → ∘ ≤ ≥ ≠ − and Greek letters,
+  with `<sup>`/`<sub>` rendered as genuine raised and lowered runs at
+  70% size rather than `^` and `_`.
+
+  DejaVu was chosen after checking glyph coverage: the Cyrillic face
+  already loaded here (Noto Sans) is **missing 17** of the symbols the
+  banks use, so reusing it would have produced blank boxes. DejaVu
+  contains all of them plus Cyrillic and Greek.
+
+  jsPDF has no rich text — one `doc.text()` call is one font at one size
+  on one baseline — so `mathParseRuns` / `mathWrapRuns` /
+  `mathDrawLines` split each string into runs, word-wrap across them and
+  draw each with its own size and baseline offset. The same wrapper does
+  sizing and drawing, so an option's box height can't desynchronise from
+  its contents.
+
+  The font is **self-hosted** at `assets/fonts/`, subset to the ranges
+  the platform uses (Latin, Latin Extended-A/B, spacing modifiers,
+  Greek, Cyrillic, punctuation, super/subscripts, letterlike, arrows,
+  mathematical operators, geometric shapes). That takes the pair from
+  1.43 MB to **284 KB**. Being same-origin it reuses the connection
+  already open to the app, so it is faster than a CDN — and modern
+  browsers partition the HTTP cache by site, so the old "already cached
+  from another site" argument for a CDN no longer applies. jsDelivr
+  remains only as a backstop if the local files are missing. Bump the
+  `?v=` query in `MATH_FONT_SOURCES` when regenerating the files.
+
+  If the font fetch fails from every source, the report falls back to ASCII
+  transliteration (`∫`→`Integral`, `x⁴`→`x^4`) rather than breaking:
+  jsPDF's built-in Helvetica only encodes Latin-1, and one character
+  above U+00FF makes it emit the whole string as UTF-16, which renders
+  as garbled, letter-spaced text.
+
+HTML stripping in the PDF uses a tag whitelist rather than removing
+everything angle-bracketed — otherwise options that are legitimately
+`<iostream>` or `<string>` disappear.
+
 ## Security notes
 
 `firestore.rules` enforces the per-schedule student allow-list at write
